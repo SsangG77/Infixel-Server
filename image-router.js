@@ -46,8 +46,6 @@ router.get("/randomimage", (req, res) => {
         profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
         pic: results[0].pic,
       };
-
-      console.log(jsonData.profile_image);
       res.json(jsonData);
     });
   });

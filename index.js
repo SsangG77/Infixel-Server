@@ -28,3 +28,4 @@ module.exports = { pool, folder_name };
 app.use("/pic", require("./pic-router"));
 app.use("/user", require("./user-router"));
 app.use("/image", require("./image-router"));
+app.use("/comment", require("./comment-router"));
