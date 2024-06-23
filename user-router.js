@@ -3,7 +3,7 @@ const express = require("express");
 let router = express.Router();
 
 //다른 파일
-const { pool, folder_name } = require("./index");
+const { pool, folder_name, formatDate } = require("./index");
 
 //============================================================
 
@@ -11,11 +11,9 @@ const { pool, folder_name } = require("./index");
 router.post("/login", (req, res) => {
   let req_id = req.body.userId;
   let req_pw = req.body.userPW;
-  console.log("=== 로그인 요청 ===");
-  console.log("user id : ", req_id);
-  console.log("user pw : ", req_pw);
+  console.log(`=== 로그인 요청 -- id : ${req_id} / pw : ${req_pw} ===`);
 
-  let query = `select * from users 
+  let query = `select * from infixel_db.users 
   where 
   login_id = '${req_id}' 
   AND 
@@ -23,16 +21,24 @@ router.post("/login", (req, res) => {
 
   pool.getConnection((err, connection) => {
     if (err) {
+      console.log("MySQL 연결 실패");
+      console.log(err)
       return res.status(500).json({ error: "MySQL 연결 실패" });
     }
 
     connection.query(query, (queryErr, results) => {
       connection.release(); // 연결 반환
       if (queryErr) {
+        console.log("쿼리 실행 실패")
         return res.status(500).json({ error: "쿼리 실행 실패" });
       }
       let response = {
         id: "",
+        user_id: "",
+        user_name: "",
+        created_at: "",
+        profile_image: "",
+        description: "",
         isLogin: false,
       };
 
@@ -40,6 +46,11 @@ router.post("/login", (req, res) => {
         res.json(
           (response = {
             id: results[0].id,
+            user_at: results[0].user_id,
+            user_name: results[0].user_name,
+            created_at: formatDate(true, results[0].created_at),
+            profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
+            description: results[0].description,
             isLogin: true,
           })
         );
@@ -54,6 +65,7 @@ router.post("/login", (req, res) => {
     });
   });
 });
+//login end
 
 //=============================================
 
@@ -92,6 +104,7 @@ router.post("/signup", (req, res) => {
     // console.log(user_result);
   });
 });
+//sign up end
 
 //=============================================================================
 module.exports = router;

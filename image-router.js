@@ -1,5 +1,8 @@
 //라이브러리
 const path = require("path");
+const fs = require('fs');
+//const mime = require('mime');
+const sharp = require('sharp');
 const express = require("express");
 let router = express.Router();
 require("dotenv").config();
@@ -11,10 +14,13 @@ const { pool, folder_name } = require("./index");
 
 let randomImgCount = 0;
 router.get("/randomimage", (req, res) => {
-  console.log(`random image ${randomImgCount}번째 동작`);
   randomImgCount++;
 
-  let query = `SELECT infixel_db.images.*, infixel_db.users.profile_image, infixel_db.users.user_id AS user_at, COUNT(infixel_db.pics.image_id) AS pic
+  let query = `
+  SELECT infixel_db.images.*, 
+  infixel_db.users.profile_image, 
+  infixel_db.users.user_id AS user_at, 
+  COUNT(infixel_db.pics.image_id) AS pic
       FROM infixel_db.images
       JOIN infixel_db.users ON infixel_db.images.user_id = infixel_db.users.id
       LEFT JOIN infixel_db.pics ON infixel_db.images.id = infixel_db.pics.image_id
@@ -32,9 +38,6 @@ router.get("/randomimage", (req, res) => {
       if (queryErr) {
         return res.status(500).json({ error: "쿼리 실행 실패" });
       }
-      console.log("======== results =========");
-      console.log(results[0]);
-      console.log("");
 
       let jsonData = {
         id: results[0].id,
@@ -57,9 +60,105 @@ router.get("/randomimage", (req, res) => {
 router.get("/resjpg", (req, res) => {
   const fileName = req.query.filename;
 
-  const filePath = path.join(__dirname, folder_name, `${fileName}.jpg`);
+  const filePath = path.join(__dirname, folder_name, `${fileName}`);
   res.sendFile(filePath);
 });
+
+//==========================================================================
+
+//랜덤으로 이미지 파일을 응답
+router.get("/randomjpg", (req, res) => {
+  const directoryPath = path.join(__dirname, folder_name);
+
+  fs.readdir(directoryPath, (err, files) => {
+    if (err) {
+      console.error('디렉토리를 읽는 중 오류 발생:', err);
+      return res.status(500).send('서버 오류');
+    }
+
+    if (files.length === 0) {
+      return res.status(404).send('디렉토리에 파일이 없습니다.');
+    }
+
+    // 랜덤으로 파일 선택
+    const randomIndex = Math.floor(Math.random() * files.length);
+    const randomFile = files[randomIndex];
+
+    const filePath = path.join(__dirname, folder_name, randomFile);
+    res.sendFile(filePath)
+
+    //const mimeType = mime.getType(filePath)
+
+    // sharp(filePath)
+    // .resize(800, 600)
+    // .toBuffer()
+    // .then(data => {
+    //   //res.set('Content-Type', mimeType);
+    //   res.send(data)
+    // })
+    // .catch(err => {
+    //   console.error('이미지를 처리하는 중 오류 발생:', err);
+    //   res.status(500).send('서버 오류');
+    // });
+
+    
+
+  });
+})
+
+
+//=============================================================================
+//이미지 아이디로 조회된 이미지 응답
+router.post("/getimagefromid", (req, res) => {
+  const imageId = req.body.image_id
+
+  console.log(imageId)
+
+  let query = `
+ SELECT infixel_db.images.*, 
+  infixel_db.users.profile_image, 
+  infixel_db.users.user_id AS user_at, 
+  COUNT(infixel_db.pics.image_id) AS pic
+FROM infixel_db.images
+JOIN infixel_db.users ON infixel_db.images.user_id = infixel_db.users.id
+LEFT JOIN infixel_db.pics ON infixel_db.images.id = infixel_db.pics.image_id
+WHERE infixel_db.images.id = '${imageId}'
+GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.user_id;
+      `
+  
+  //`select * from infixel_db.images where id = '${imageId}'`
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    connection.query(query, (queryErr, results) => {
+      connection.release(); // 연결 반환
+      if (queryErr) {
+        return res.status(500).json({ error: "쿼리 실행 실패" });
+      }
+
+      let jsonData = {
+        id: results[0].id,
+        created_at: results[0].created_at == null ? "" : results[0].created_at,
+        user_id: results[0].user_id == null ? "" : results[0].user_id,
+        image_link: process.env.URL + "/image/resjpg?filename=" + results[0].image_name,
+        description: results[0].description == null ? "" : results[0].description,
+        user_at: results[0].user_at,
+        profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
+        pic: results[0].pic,
+      };
+      console.log(jsonData)
+      res.json(jsonData);
+    });
+
+  });
+
+})
+
+
+
 
 //=============================================================================
 module.exports = router;
