@@ -119,3 +119,11 @@ dist
 
 #보안관련해서..
 package-lock.json
+
+
+#이미지 파일들
+*.jpg
+*.jpeg
+*.webp
+images/
+

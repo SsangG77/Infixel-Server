@@ -16,7 +16,7 @@ const pool = mysql.createPool({
 const app = express();
 app.use(express.json());
 
-const folder_name = "iu";
+const folder_name = "images";
 
 // 웹 서버를 3000번 포트에서 시작
 app.listen(3000, () => {

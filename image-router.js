@@ -2,7 +2,6 @@
 const path = require("path");
 const fs = require('fs');
 //const mime = require('mime');
-const sharp = require('sharp');
 const express = require("express");
 let router = express.Router();
 require("dotenv").config();
@@ -112,7 +111,6 @@ router.get("/randomjpg", (req, res) => {
 router.post("/getimagefromid", (req, res) => {
   const imageId = req.body.image_id
 
-  console.log(imageId)
 
   let query = `
  SELECT infixel_db.images.*, 
@@ -149,6 +147,7 @@ GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.
         profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
         pic: results[0].pic,
       };
+      console.log("이미지 아이디로 조회")
       console.log(jsonData)
       res.json(jsonData);
     });

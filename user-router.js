@@ -58,10 +58,6 @@ router.post("/login", (req, res) => {
         res.json(response);
       }
 
-      // res.json(user_result);
-
-      // console.log(results.length);
-      // console.log(user_result);
     });
   });
 });
@@ -98,10 +94,6 @@ router.post("/signup", (req, res) => {
       res.json(true);
     }
 
-    // res.json(user_result);
-
-    // console.log(results.length);
-    // console.log(user_result);
   });
 });
 //sign up end

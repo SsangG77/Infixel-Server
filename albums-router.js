@@ -45,7 +45,6 @@ router.post("/get", (req, res) => {
         };
         albums.push(album);
       }
-      console.log(albums);
       return res.json(albums);
     });
   });
@@ -56,7 +55,6 @@ router.post("/set", (req, res) => {
   let image_id = req.body.image_id;
 
   let query = `insert into infixel_db.album_images values ('${album_id}', '${image_id}');`;
-  console.log(query);
 
   pool.getConnection((err, connection) => {
     if (err) {

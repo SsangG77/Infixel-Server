@@ -8,6 +8,8 @@ require("dotenv").config();
 //다른 파일
 const { pool, folder_name, formatDate } = require("./index");
 
+
+//========================= comment set ========================
 router.post("/set", (req, res) => {
   let id = uuidv4();
   let created_at = formatDate(false, "");
@@ -20,7 +22,7 @@ router.post("/set", (req, res) => {
   console.log("");
 
   let query = `insert into infixel_db.comments values ('${id}', '${created_at}', '${content}', '${user_id}', '${image_id}')`;
-  console.log(query);
+  
   pool.getConnection((err, connection) => {
     if (err) {
       return res.status(500).json({ error: "MySQL 연결 실패" });
@@ -35,7 +37,11 @@ router.post("/set", (req, res) => {
     });
   });
 });
+//============================================================
 
+
+
+//==================== comment get ================================
 router.post("/get", (req, res) => {
   let image_id = req.body.image_id;
   let query = `
@@ -81,8 +87,35 @@ router.post("/get", (req, res) => {
     });
   });
 });
+//============================================================
 
-// 날짜 형식을 'yyyy/mm/dd'로 변환하는 함수
+
+//==================== comment count ================================
+router.post("/count", (req, res) => {
+  let image_id = req.body.image_id;
+  let query = `
+      select COUNT(*) as count from infixel_db.comments where image_id = '${image_id}';
+    `;
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    connection.query(query, (queryErr, results) => {
+      connection.release();
+      if (queryErr) {
+        return res.status(500).json({ error: "쿼리 실행 실패" });
+      }
+      console.log(results[0].count)
+      res.send(results[0].count.toString())
+
+    });
+  });
+});
+
+////=================================================================
+
 
 //=============================================================================
 module.exports = router;
