@@ -98,5 +98,67 @@ router.post("/signup", (req, res) => {
 });
 //sign up end
 
+
+router.post("/search", (req, res) => {
+  let user_search = req.body.search_word;
+
+  let query = `
+  SELECT
+    u.id,
+    u.user_id,
+    u.user_name,
+    u.profile_image,
+    COUNT(DISTINCT f.user_id) AS follower_count,
+    COUNT(DISTINCT p.image_id) AS total_likes
+FROM
+    infixel_db.users u
+LEFT JOIN
+    infixel_db.follows f ON u.id = f.follow_user_id
+LEFT JOIN
+    infixel_db.images i ON u.id = i.user_id
+LEFT JOIN
+    infixel_db.pics p ON i.id = p.image_id
+where u.user_name LIKE '%${user_search}%' OR u.user_id LIKE '%${user_search}%'
+GROUP BY
+    u.id, u.user_id, u.user_name, u.profile_image
+ORDER BY
+    total_likes DESC;
+  `
+
+  pool.getConnection((err, connrction) => {
+    if (err) {
+      return res.status(500).json({ error: "Mysql 연결 실패"})
+    }
+
+    connrction.query(query, (querryErr, results) => {
+      connrction.release();
+      if ( querryErr) {
+        return res.status(500).json({ error: " user search 쿼리 실행 실패"})
+      }
+
+      user_search_results = []
+
+      for (let i = 0; i < results.length; i++) {
+        user = {
+          id: results[i].id,
+          user_id: results[i].user_id,
+          user_name: results[i].user_name,
+          profile_image: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image,
+          follower_count: results[i].follower_count.toString(),
+          pic_count: results[i].total_likes.toString()
+        }
+        user_search_results.push(user)
+      }
+      res.json(user_search_results)
+
+    })
+
+  })
+
+
+
+})
+
+
 //=============================================================================
 module.exports = router;

@@ -16,7 +16,8 @@ router.get("/randomimage", (req, res) => {
   randomImgCount++;
 
   let query = `
-  SELECT infixel_db.images.*, 
+  SELECT 
+  infixel_db.images.*, 
   infixel_db.users.profile_image, 
   infixel_db.users.user_id AS user_at, 
   COUNT(infixel_db.pics.image_id) AS pic

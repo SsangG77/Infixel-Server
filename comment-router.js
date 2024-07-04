@@ -82,7 +82,7 @@ router.post("/get", (req, res) => {
         };
         comment_results.push(comment);
       }
-      console.log(comment_results);
+      
       res.json(comment_results);
     });
   });

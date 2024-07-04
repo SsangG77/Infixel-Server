@@ -65,7 +65,6 @@ router.post("/search", (req, res) => {
         }
         search_results.push(search_result)
       }
-      console.log(search_results)
       res.send(search_results)
     })
   })
