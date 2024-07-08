@@ -1,7 +1,8 @@
 //라이브러리
 const path = require("path");
+const multer = require('multer');
 const fs = require('fs');
-//const mime = require('mime');
+const { v4: uuidv4 } = require('uuid');
 const express = require("express");
 let router = express.Router();
 require("dotenv").config();
@@ -156,7 +157,64 @@ GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.
   });
 
 })
+//=============================================================================
 
+
+// 업로드 폴더가 없으면 생성
+const uploadDir = 'images';
+if (!fs.existsSync(uploadDir)){
+    fs.mkdirSync(uploadDir);
+}
+
+// 저장 위치 및 파일 이름 설정
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, `${process.env.IMAGE_FOLDER}/`);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
+
+router.post("/upload", upload.single('file'), (req, res) => {
+  const file = req.file;
+  const { user_id, description } = req.body;
+  if (!file) {
+    return res.status(400).send('No file uploaded');
+  }
+
+  // 파일 경로
+  const filePath = file.filename;
+  console.log("imageid-" + uuidv4(), filePath, user_id, description)
+
+
+  let query = `insert into infixel_db.images (id, image_name, user_id, description) values ('${"imageid-" + uuidv4()}', '${filePath}', '${user_id}', '${description}');`
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    connection.query(query, (queryErr, results) => {
+      connection.release(); // 연결 반환
+      if (queryErr) {
+        return res.status(500).json({ error: "쿼리 실행 실패" });
+      }
+
+
+      res.send({ message: 'File uploaded successfully', filePath: filePath });
+    });
+
+  });
+
+
+
+
+  
+})
 
 
 

@@ -9,7 +9,6 @@ const { pool, folder_name, formatDate } = require("./index");
 
 router.post("/get", (req, res) => {
   let user_id = req.body.user_id;
-  console.log(req.body.user_id);
 
   //let query = `SELECT id, created_at, album_name, profile_image FROM infixel_db.albums where user_id = '${user_id}';`;
   let query = `SELECT 
@@ -76,8 +75,6 @@ console.log(query)
 
 router.post("/search", (req, res) => {
   let search_word = req.body.search_word;
-  console.log("album search : ", search_word)
-
   let query = `SELECT 
   albums.id, 
   albums.created_at, 
@@ -118,15 +115,12 @@ router.post("/search", (req, res) => {
 })
 //============================================================================================
 
-router.post("/search", (req, res) => {
+router.post("/images", (req, res) => {
   let album_id = req.body.album_id;
-
   let query = `
   SELECT 
-    infixel_db.images.*, 
-    infixel_db.users.profile_image, 
-    infixel_db.users.user_id AS user_at, 
-    COUNT(infixel_db.pics.image_id) AS pic
+    infixel_db.images.id,
+    infixel_db.images.image_name
   FROM 
       infixel_db.images
   JOIN 
@@ -146,11 +140,11 @@ router.post("/search", (req, res) => {
       )
   GROUP BY 
       infixel_db.images.id;
-  `
+  `;
 
   pool.getConnection((err, connection) => {
     if (err) {
-      return res.status(500).json({ error: "MySql 연결 실패"});
+      return res.status(500).json({ error: "MySql 연결 실패" });
     }
 
     connection.query(query, (queryErr, results) => {
@@ -164,25 +158,14 @@ router.post("/search", (req, res) => {
       for(let i = 0; i < results.length; i++) {
         let image = {
           id: results[i].id,
-          created_at: results[i].created_at == null ? "" : results[i].created_at,
-          user_id: results[i].user_id == null ? "" : results[i].user_id,
-          image_link: process.env.URL + "/image/resjpg?filename=" + results[i].image_name,
-          description: results[i].description == null ? "" : results[i].description,
-          user_at: results[i].user_at,
-          profile_image: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image,
-          pic: results[i].pic,
+          image_name: process.env.URL + "/image/resjpg?filename=" + results[i].image_name
         }
         images.push(image)
       }
-
-      
       return res.json(images);
     });
+  });
 
-
-
-
-  })
 
 })
 
