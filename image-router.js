@@ -160,6 +160,7 @@ GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.
 //=============================================================================
 
 
+
 // 업로드 폴더가 없으면 생성
 const uploadDir = 'images';
 if (!fs.existsSync(uploadDir)){
@@ -179,41 +180,114 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-router.post("/upload", upload.single('file'), (req, res) => {
+
+router.post("/upload", upload.single('file'), async (req, res) => {
   const file = req.file;
+
   const { user_id, description } = req.body;
+  
+  var imageId = "imageid-"+ uuidv4()
+  const filePath = file.filename;
+
+  //태그 처리 부분
+  const tags = req.body.tags; 
+  const tagsArray = Array.isArray(tags) ? tags : [tags];
+  console.log('Tags:', tagsArray);
+
+
   if (!file) {
     return res.status(400).send('No file uploaded');
   }
 
-  // 파일 경로
-  const filePath = file.filename;
-  console.log("imageid-" + uuidv4(), filePath, user_id, description)
+  //1. 태그가 입력되었는지 아닌지
+  if (tags == undefined) {
+    console.log("images-router /upload : 입력된 태그 없음.")
+  } else {
+    console.log("image-router /upload : ", tagsArray)
 
 
-  let query = `insert into infixel_db.images (id, image_name, user_id, description) values ('${"imageid-" + uuidv4()}', '${filePath}', '${user_id}', '${description}');`
 
-  pool.getConnection((err, connection) => {
-    if (err) {
-      return res.status(500).json({ error: "MySQL 연결 실패" });
-    }
+    //====
 
-    connection.query(query, (queryErr, results) => {
-      connection.release(); // 연결 반환
-      if (queryErr) {
-        return res.status(500).json({ error: "쿼리 실행 실패" });
+    pool.getConnection((err, connection) => {
+      if (err) {
+        console.error("Connection 에러 :", err)
+        res.status(500).json({ error: "Mysql 에러"})
+        return;
       }
 
+      connection.beginTransaction(async (err) => {
+        if (err) {
+          connection.release();
+          console.error("Error starting transaction : ", err)
+          res.status(500).json({ error : "Mysql 트렌직션 에러"})
+          return;
+        }
 
-      res.send({ message: 'File uploaded successfully', filePath: filePath });
-    });
+        try {
+          let query = `insert into infixel_db.images (id, image_name, user_id, description) values (?, ?, ?, ?);`
+          connection.query(query, [imageId, filePath, user_id, description], (err, result) => {
+            if (err) {
+              connection.rollback(() => {
+                connection.release();
+                console.error("이미지 업로드 에러", err);
+                res.status(500).json({ error: "데이터베이스 insert error"})
+              })
+              return;
+            }
+            const tagQuery = 'insert into infixel_db.tags (id, tag, image_id) values (?, ?, ?);'
+            const tagPromises = tagsArray.map((tag) => {
+              return new Promise((resolve, reject) => {
+                connection.query(tagQuery, ["tagid-"+uuidv4(), tag, imageId], (err) => {
+                  if (err) {
+                    reject(err)
+                  } else {
+                    resolve();
+                  }
+                });
+              });
+            });
 
-  });
+            Promise.all(tagPromises)
+            .then(() => {
+              connection.commit((err) => {
+                if (err) {
+                  connection.rollback(() => {
+                    connection.release();
+                    console.error('Error committing transaction:', err);
+                    res.status(500).json({ error: 'Database commit error' });
+                  })
+                  return
+                }
+
+                connection.release();
+                res.send({ message: '업로드 완료', filePath: filePath });
+
+              })
+            })
+            .catch((err) => {
+              connection.rollback(() => {
+                connection.release();
+                console.error('태그 입력 에러', err);
+                res.status(500).json({ error: '데이터베이스 입력 에러'})
+              })
+            })
+
+          })
+
+        } catch {
+          connection.rollback(() => {
+            connection.release();
+            console.error(error);
+            res.status(500).json({ error: '데이터베이스 에러'})
+          })
+        }
 
 
+      })
 
-
-  
+    })
+  }
 })
 
 

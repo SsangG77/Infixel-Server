@@ -1,6 +1,9 @@
 const express = require("express");
 
-// const fs = require("fs");
+//websocket
+const http = require("http");
+const WebSocket = require("ws");
+
 const mysql = require("mysql");
 require("dotenv").config();
 
@@ -19,9 +22,9 @@ app.use(express.json());
 const folder_name = "images";
 
 // 웹 서버를 3000번 포트에서 시작
-app.listen(3000, () => {
-  console.log("서버가 3000번 포트에서 실행 중입니다.");
-});
+// app.listen(3000, () => {
+//   console.log("서버가 3000번 포트에서 실행 중입니다.");
+// });
 
 module.exports = { pool, folder_name, formatDate };
 
@@ -57,3 +60,70 @@ function formatDate(type, date_val) {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
 }
+
+
+
+
+
+
+//websocket 테스트
+
+// Express HTTP 서버 생성
+const server = http.createServer(app);
+
+// WebSocket 서버 생성
+const wss = new WebSocket.Server({ server });
+
+// 순위 데이터
+let rankings = [
+  { name: "User1", score: 100 },
+  { name: "User2", score: 95 },
+  { name: "User3", score: 90 },
+];
+
+// 클라이언트에 순위 데이터를 브로드캐스트하는 함수
+function broadcastRankings() {
+  const data = JSON.stringify(rankings);
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
+}
+
+// 배열을 무작위로 섞는 함수 (Fisher-Yates 알고리즘)
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+// 1초마다 순위 데이터를 무작위로 섞고 브로드캐스트
+setInterval(() => {
+  shuffleArray(rankings);
+  broadcastRankings();
+}, 1000);
+
+
+// WebSocket 연결 처리
+wss.on("connection", ws => {
+  console.log("Client connected");
+  ws.send(JSON.stringify(rankings)); // 초기 순위 데이터를 전송
+
+  ws.on("message", message => {
+    console.log("Received:", message);
+  });
+
+  ws.on("close", () => {
+    console.log("Client disconnected");
+  });
+});
+
+
+// 웹 서버를 3000번 포트에서 시작
+server.listen(3000, () => {
+  console.log("서버가 3000번 포트에서 실행 중입니다.");
+});
+
+
