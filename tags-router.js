@@ -5,7 +5,7 @@ let router = express.Router();
 require("dotenv").config();
 
 //다른 파일
-const { pool, folder_name, formatDate } = require("./index");
+const { pool } = require("./database");
 
 router.post("/get", (req, res) => {
   let image_id = req.body.image_id;

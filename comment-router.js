@@ -6,7 +6,8 @@ const { v4: uuidv4 } = require("uuid");
 require("dotenv").config();
 
 //다른 파일
-const { pool, folder_name, formatDate } = require("./index");
+const {formatDate } = require("./index");
+const { pool } = require("./database");
 
 
 //========================= comment set ========================

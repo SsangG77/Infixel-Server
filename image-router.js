@@ -8,7 +8,8 @@ let router = express.Router();
 require("dotenv").config();
 
 //다른 파일
-const { pool, folder_name } = require("./index");
+const {folder_name } = require("./index");
+const { pool } = require("./database");
 
 //=================================================================
 
@@ -88,21 +89,6 @@ router.get("/randomjpg", (req, res) => {
     const filePath = path.join(__dirname, folder_name, randomFile);
     res.sendFile(filePath)
 
-    //const mimeType = mime.getType(filePath)
-
-    // sharp(filePath)
-    // .resize(800, 600)
-    // .toBuffer()
-    // .then(data => {
-    //   //res.set('Content-Type', mimeType);
-    //   res.send(data)
-    // })
-    // .catch(err => {
-    //   console.error('이미지를 처리하는 중 오류 발생:', err);
-    //   res.status(500).send('서버 오류');
-    // });
-
-    
 
   });
 })
@@ -289,6 +275,92 @@ router.post("/upload", upload.single('file'), async (req, res) => {
     })
   }
 })
+
+
+// router.post("/report", (req, res) => {
+//   console.log("/report")
+//   let imageId = req.body.image_id;
+//   let userId = req.body.user_id;
+//   console.log(imageId, userId)
+
+//   let select_query = `select * from infixel_db.report_image where user_id = '${userId}' AND image_id = '${imageId}';`
+//   let insert_query = `insert into infixel_db.report_image values ('${userId}', '${imageId}');`
+
+
+//   pool.getConnection((err, connection)=> {
+//     if (err) {
+//       console.log( "MYSQL 연결 실패")
+//       return res.status(500).json({error: "MYSQL 연결 실패"})
+//     }
+//     connection.query(select_query, (queryErr, results)=> {
+//       connection.release();
+
+//       if(queryErr) {
+//         console.log("쿼리 에러")
+//         return res.status(500).json({result: false})
+//       }
+
+//       if (results.length == 0) { //값이 없을때
+//         connection.query(insert_query, (queryErr, results) => {
+//           connection.release();
+
+//           if(queryErr) {
+//             console.log("쿼리 에러")
+//             return res.status(500).json({result: false})
+//           }
+
+//           return res.send(true)
+
+//         })
+//       } else { //값이 있을때
+//         return res.send(false)
+//       }
+
+//     })
+
+//   })
+
+// })
+
+router.post("/report", (req, res) => {
+  console.log("/report");
+  let imageId = req.body.image_id;
+  let userId = req.body.user_id;
+  console.log(imageId, userId);
+
+  let select_query = `SELECT * FROM infixel_db.report_image WHERE user_id = ? AND image_id = ?;`;
+  let insert_query = `INSERT INTO infixel_db.report_image (user_id, image_id) VALUES (?, ?);`;
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.log("MYSQL 연결 실패");
+      return res.status(500).json({ error: "MYSQL 연결 실패" });
+    }
+
+    connection.query(select_query, [userId, imageId], (queryErr, results) => {
+      if (queryErr) {
+        connection.release();
+        console.log("쿼리 에러");
+        return res.status(500).send(false);;
+      }
+
+      if (results.length === 0) { // 값이 없을 때
+        connection.query(insert_query, [userId, imageId], (queryErr, results) => {
+          connection.release();
+          if (queryErr) {
+            console.log("쿼리 에러");
+            return res.status(500).send(false);;
+          }
+
+          return res.send(true);
+        });
+      } else { // 값이 있을 때
+        connection.release();
+        return res.send(false);
+      }
+    });
+  });
+});
 
 
 

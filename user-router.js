@@ -3,7 +3,8 @@ const express = require("express");
 let router = express.Router();
 
 //다른 파일
-const { pool, folder_name, formatDate } = require("./index");
+const { formatDate } = require("./index");
+const { pool } = require("./database");
 
 //============================================================
 

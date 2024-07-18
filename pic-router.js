@@ -3,7 +3,8 @@ const express = require("express");
 let router = express.Router();
 
 //다른 파일
-const { pool, folder_name } = require("./index");
+
+const { pool } = require("./database");
 
 //유저가 해당 이미지의 pic 버튼을 눌렀을때 처리 함수
 router.post("/up", (req, res) => {
