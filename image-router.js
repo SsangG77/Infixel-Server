@@ -135,8 +135,7 @@ GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.
         profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
         pic: results[0].pic,
       };
-      console.log("이미지 아이디로 조회")
-      console.log(jsonData)
+     
       res.json(jsonData);
     });
 
@@ -190,7 +189,6 @@ router.post("/upload", upload.single('file'), async (req, res) => {
     console.log("images-router /upload : 입력된 태그 없음.")
   } else {
     console.log("image-router /upload : ", tagsArray)
-
 
 
     //====
@@ -277,50 +275,6 @@ router.post("/upload", upload.single('file'), async (req, res) => {
 })
 
 
-// router.post("/report", (req, res) => {
-//   console.log("/report")
-//   let imageId = req.body.image_id;
-//   let userId = req.body.user_id;
-//   console.log(imageId, userId)
-
-//   let select_query = `select * from infixel_db.report_image where user_id = '${userId}' AND image_id = '${imageId}';`
-//   let insert_query = `insert into infixel_db.report_image values ('${userId}', '${imageId}');`
-
-
-//   pool.getConnection((err, connection)=> {
-//     if (err) {
-//       console.log( "MYSQL 연결 실패")
-//       return res.status(500).json({error: "MYSQL 연결 실패"})
-//     }
-//     connection.query(select_query, (queryErr, results)=> {
-//       connection.release();
-
-//       if(queryErr) {
-//         console.log("쿼리 에러")
-//         return res.status(500).json({result: false})
-//       }
-
-//       if (results.length == 0) { //값이 없을때
-//         connection.query(insert_query, (queryErr, results) => {
-//           connection.release();
-
-//           if(queryErr) {
-//             console.log("쿼리 에러")
-//             return res.status(500).json({result: false})
-//           }
-
-//           return res.send(true)
-
-//         })
-//       } else { //값이 있을때
-//         return res.send(false)
-//       }
-
-//     })
-
-//   })
-
-// })
 
 router.post("/report", (req, res) => {
   console.log("/report");

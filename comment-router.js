@@ -19,10 +19,10 @@ router.post("/set", (req, res) => {
   let image_id = req.body.image_id;
 
   console.log("=============== comment set ===============");
-  console.log(`content : ${content}, image_id : ${image_id}`);
+  console.log(`content : ${content}, image_id : ${image_id}, created : ${created_at}, user_id : ${user_id}`);
   console.log("");
 
-  let query = `insert into infixel_db.comments values ('${id}', '${created_at}', '${content}', '${user_id}', '${image_id}')`;
+  let query = `insert into infixel_db.comments values ('${id}','${content}', '${user_id}', '${image_id}', '${created_at}');`;
   
   pool.getConnection((err, connection) => {
     if (err) {
