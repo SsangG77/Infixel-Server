@@ -275,9 +275,11 @@ router.post("/upload", upload.single('file'), async (req, res) => {
 })
 
 
+//==================================================================================================
+
+
 
 router.post("/report", (req, res) => {
-  console.log("/report");
   let imageId = req.body.image_id;
   let userId = req.body.user_id;
   console.log(imageId, userId);
@@ -315,6 +317,44 @@ router.post("/report", (req, res) => {
     });
   });
 });
+
+//==================================================================================
+
+
+router.post("/myimage", (req, res)=> {
+  let user_id = req.body.user_id;
+  console.log(user_id)
+
+  let query = `
+    select id, image_name from infixel_db.images where user_id = '${user_id}';
+        `
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "MySql 연결 실패" });
+    }
+
+    connection.query(query, (queryErr, results) => {
+      connection.release();
+      if (queryErr) {
+        return res.status(500).json({ results: false });
+      }
+
+      let images = [];
+
+      for(let i = 0; i < results.length; i++) {
+        let image = {
+          id: results[i].id,
+          image_name: process.env.URL + "/image/resjpg?filename=" + results[i].image_name
+        }
+        images.push(image)
+      }
+      return res.json(images);
+    });
+  });
+
+})
+
 
 
 
