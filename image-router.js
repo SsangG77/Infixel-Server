@@ -2,6 +2,7 @@
 const path = require("path");
 const multer = require('multer');
 const fs = require('fs');
+const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const express = require("express");
 let router = express.Router();
@@ -19,16 +20,21 @@ router.get("/randomimage", (req, res) => {
 
   let query = `
   SELECT 
-  infixel_db.images.*, 
-  infixel_db.users.profile_image, 
-  infixel_db.users.user_id AS user_at, 
-  COUNT(infixel_db.pics.image_id) AS pic
-      FROM infixel_db.images
-      JOIN infixel_db.users ON infixel_db.images.user_id = infixel_db.users.id
-      LEFT JOIN infixel_db.pics ON infixel_db.images.id = infixel_db.pics.image_id
-      GROUP BY infixel_db.images.id
-      ORDER BY RAND()
-      LIMIT 1;`;
+    infixel_db.images.*, 
+    infixel_db.users.profile_image, 
+    infixel_db.users.user_id AS user_at, 
+    COUNT(infixel_db.pics.image_id) AS pic
+  FROM 
+    infixel_db.images
+  JOIN 
+    infixel_db.users ON infixel_db.images.user_id = infixel_db.users.id
+  LEFT JOIN 
+    infixel_db.pics ON infixel_db.images.id = infixel_db.pics.image_id
+  GROUP BY 
+    infixel_db.images.id
+  ORDER BY RAND()
+  LIMIT 1;
+  `
 
   pool.getConnection((err, connection) => {
     if (err) {
@@ -48,7 +54,7 @@ router.get("/randomimage", (req, res) => {
         image_link: process.env.URL + "/image/resjpg?filename=" + results[0].image_name,
         description: results[0].description == null ? "" : results[0].description,
         user_at: results[0].user_at,
-        profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
+        profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
         pic: results[0].pic,
       };
       res.json(jsonData);
@@ -62,8 +68,30 @@ router.get("/randomimage", (req, res) => {
 router.get("/resjpg", (req, res) => {
   const fileName = req.query.filename;
 
+  //
+  const profileImageOrNot = req.query.profileimage === 'true';
   const filePath = path.join(__dirname, folder_name, `${fileName}`);
-  res.sendFile(filePath);
+
+  if(profileImageOrNot) {
+    sharp(filePath)
+    .resize(300, 300)
+    .toBuffer()
+    .then(data => {
+      res.set('Content-Type', 'image/jpeg');
+      res.send(data);
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).send('이미지 리사이징 에러')
+    })
+  } else {
+    res.sendFile(filePath)
+  }
+  //
+
+
+  //const filePath = path.join(__dirname, folder_name, `${fileName}`);
+  // res.sendFile(filePath);
 });
 
 //==========================================================================
@@ -132,7 +160,7 @@ GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.
         image_link: process.env.URL + "/image/resjpg?filename=" + results[0].image_name,
         description: results[0].description == null ? "" : results[0].description,
         user_at: results[0].user_at,
-        profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
+        profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
         pic: results[0].pic,
       };
      
@@ -177,7 +205,7 @@ router.post("/upload", upload.single('file'), async (req, res) => {
   //태그 처리 부분
   const tags = req.body.tags; 
   const tagsArray = Array.isArray(tags) ? tags : [tags];
-  console.log('Tags:', tagsArray);
+  
 
 
   if (!file) {
@@ -282,7 +310,6 @@ router.post("/upload", upload.single('file'), async (req, res) => {
 router.post("/report", (req, res) => {
   let imageId = req.body.image_id;
   let userId = req.body.user_id;
-  console.log(imageId, userId);
 
   let select_query = `SELECT * FROM infixel_db.report_image WHERE user_id = ? AND image_id = ?;`;
   let insert_query = `INSERT INTO infixel_db.report_image (user_id, image_id) VALUES (?, ?);`;
@@ -323,7 +350,6 @@ router.post("/report", (req, res) => {
 
 router.post("/myimage", (req, res)=> {
   let user_id = req.body.user_id;
-  console.log(user_id)
 
   let query = `
     select id, image_name from infixel_db.images where user_id = '${user_id}';

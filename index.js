@@ -2,7 +2,7 @@ const express = require("express");
 const { v4: uuidv4 } = require('uuid');
 const http = require("http");
 const { setupWebSocket } = require('./websocket_ranking');
-
+const apn = require('apn');
 
 
 //=========================================================================
@@ -13,7 +13,7 @@ app.use(express.json());
 
 const folder_name = "images";
 
-module.exports = { folder_name, formatDate };
+module.exports = { folder_name, formatDate, sendNotification };
 
 app.use("/pic", require("./pic-router"));
 app.use("/user", require("./user-router"));
@@ -21,6 +21,42 @@ app.use("/image", require("./image-router"));
 app.use("/comment", require("./comment-router"));
 app.use("/imagealbums", require("./albums-router"));
 app.use("/tags", require("./tags-router"));
+
+//=========================================================================
+const apnProvider = new apn.Provider({
+  token : {
+    key: "../keys/AuthKey_QYN32RD8A2.p8",
+    keyId: "QYN32RD8A2",
+    teamId: "M3KH86595Z"
+  },
+  production: false //정식 배포때 true로 변경
+})
+
+
+// 특정 디바이스 토큰으로 알림 보내기
+function sendNotification(deviceToken, alertText) {
+  let notification = new apn.Notification();
+
+  notification.topic = "com.sangjin.Infixel"; // 앱의 번들 식별자
+  notification.alert = alertText; // 푸시 알림 메시지
+  notification.sound = "default"; // 기본 알림 소리 설정
+
+  // 알림 전송
+  apnProvider.send(notification, deviceToken).then(result => {
+    // console.log("Sent:", result.sent.length); // 성공적으로 전송된 디바이스 수
+    // console.log("Failed:", result.failed.length); // 실패한 디바이스 수
+
+    // 실패한 경우의 상세 정보
+    if (result.failed.length > 0) {
+      console.log("Failures:", result.failed);
+    }
+  }).catch(error => {
+    console.error("Error sending notification:", error);
+  });
+}
+
+
+
 
 /////////////////////////////////////// module ==============================
 function formatDate(type, date_val) {

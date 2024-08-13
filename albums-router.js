@@ -14,7 +14,6 @@ const { pool } = require("./database");
 router.post("/get", (req, res) => {
   let user_id = req.body.user_id;
 
-  //let query = `SELECT id, created_at, album_name, profile_image FROM infixel_db.albums where user_id = '${user_id}';`;
   let query = `SELECT 
   albums.id, 
   albums.created_at, 
@@ -42,7 +41,7 @@ router.post("/get", (req, res) => {
         album = {
           id: results[i].id,
           created_at: formatDate(true, results[i].created_at),
-          profile_link: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image,
+          profile_link: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image + "&profileimage=true",
           album_name: results[i].album_name,
           count: results[i].total,
         };
@@ -59,7 +58,7 @@ router.post("/set", (req, res) => {
   let image_id = req.body.image_id;
 
   let query = `insert into infixel_db.album_images values ('${image_id}', '${album_id}');`;
-console.log(query)
+
   pool.getConnection((err, connection) => {
     if (err) {
       return res.status(500).json({ error: "MySql 연결 실패" });

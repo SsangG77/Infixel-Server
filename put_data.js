@@ -44,7 +44,6 @@ async function setUserData(i, image_file) {
         values ('imageid${i}', '${image_file}','userid1', 'albumid${album_num}', 'test ${i}');
         `;
     
-        console.log(query)
         pool.getConnection((err, connection) => {
             if (err) {
               return res.status(500).json({ error: "MySQL 연결 실패" });
@@ -55,7 +54,6 @@ async function setUserData(i, image_file) {
               if (queryErr) {
                 return res.status(500).json({ error: "쿼리 실행 실패" });
               }
-            console.log(results)
 
             });
           });
@@ -100,7 +98,7 @@ async function setCommentData(commentNum, userNum, imageNum) {
     let query = `insert into infixel_db.comments (id, contents, user_id, image_id) 
     values 
     ('commentid${commentNum}', 'comment test ${commentNum}', 'userid${userNum}', 'imageid${imageNum}');`;
-    console.log(query)
+    
 
     try {
         pool.getConnection((err, connection) => {
@@ -113,7 +111,7 @@ async function setCommentData(commentNum, userNum, imageNum) {
               if (queryErr) {
                 return res.status(500).json({ error: "쿼리 실행 실패" });
               }
-            //console.log(results)
+            
 
             });
           });

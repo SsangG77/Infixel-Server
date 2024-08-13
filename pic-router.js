@@ -3,37 +3,81 @@ const express = require("express");
 let router = express.Router();
 
 //다른 파일
-
+const { sendNotification } = require("./index")
 const { pool } = require("./database");
 
 //유저가 해당 이미지의 pic 버튼을 눌렀을때 처리 함수
 router.post("/up", (req, res) => {
-  //좋아요한 이미지, 좋아요 누른 유저 둘다 pic 테이블에 insert
-  //유저가 앱에서 로그인할때 유저 id 를 받아서 로그인 상태일때 기기에 저장하고 있어야함.
-
   let image_id = req.body.image_id;
   let user_id = req.body.user_id;
-
-  console.log("==== /up ====");
   console.log(image_id);
-  console.log(user_id);
 
-  let query = `insert into infixel_db.pics values ('${user_id}', '${image_id}')`;
+  let getUserQuery = `
+    SELECT 
+      infixel_db.images.user_id,
+      infixel_db.users.device_token
+    FROM 
+      infixel_db.images 
+    JOIN 
+      infixel_db.users 
+    ON 
+      infixel_db.users.id = infixel_db.images.user_id
+    WHERE 
+      infixel_db.images.id = '${image_id}';
+  `;
+
+  let insertPicQuery = `
+    INSERT INTO infixel_db.pics (user_id, image_id) VALUES ('${user_id}', '${image_id}');
+  `;
 
   pool.getConnection((err, connection) => {
     if (err) {
-      return res.status(500).json({ error: "MySQL 연결 실패" });
+      return res.status(500).json({ error: "MySQL 연결 실패." });
     }
 
-    connection.query(query, (queryErr, results) => {
-      connection.release();
-      if (queryErr) {
-        return res.status(500).json({ result: false });
+    connection.beginTransaction((err) => {
+      if (err) {
+        connection.release();
+        return res.status(500).json({ error: "트랜잭션 시작 실패." });
       }
-      return res.json({ result: true });
+
+      connection.query(getUserQuery, (queryErr, results) => {
+        if (queryErr) {
+          return connection.rollback(() => {
+            connection.release();
+            return res.status(500).json({ result: false });
+          });
+        }
+
+        let device_token = results[0].device_token;
+        console.log(device_token);
+        sendNotification(device_token, "회원님의 사진을 Pic!했습니다.");
+
+        connection.query(insertPicQuery, (queryErr, results) => {
+          if (queryErr) {
+            return connection.rollback(() => {
+              connection.release();
+              return res.status(500).json({ result: false });
+            });
+          }
+
+          connection.commit((err) => {
+            if (err) {
+              return connection.rollback(() => {
+                connection.release();
+                return res.status(500).json({ error: "트랜잭션 커밋 실패." });
+              });
+            }
+
+            connection.release();
+            return res.json({ result: true });
+          });
+        });
+      });
     });
   });
 });
+
 
 //유저가 해당 이미지의 pic을 취소했을때 처리 함수
 router.post("/down", (req, res) => {
@@ -42,9 +86,6 @@ router.post("/down", (req, res) => {
   let image_id = req.body.image_id;
   let user_id = req.body.user_id;
 
-  console.log("==== /down ====");
-  console.log(image_id);
-  console.log(user_id);
 
   let query = `delete from infixel_db.pics where image_id = '${image_id}' AND user_id = '${user_id}'`;
 

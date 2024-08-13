@@ -2,8 +2,9 @@
 const express = require("express");
 let router = express.Router();
 
+
 //다른 파일
-const { formatDate } = require("./index");
+const { formatDate, sendNotification } = require("./index");
 const { pool } = require("./database");
 
 //============================================================
@@ -50,7 +51,7 @@ router.post("/login", (req, res) => {
             user_at: results[0].user_id,
             user_name: results[0].user_name,
             created_at: formatDate(true, results[0].created_at),
-            profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image,
+            profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
             description: results[0].description,
             isLogin: true,
           })
@@ -144,7 +145,7 @@ ORDER BY
           id: results[i].id,
           user_id: results[i].user_id,
           user_name: results[i].user_name,
-          profile_image: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image,
+          profile_image: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image + "&profileimage=true",
           follower_count: results[i].follower_count.toString(),
           pic_count: results[i].total_likes.toString()
         }
@@ -155,10 +156,159 @@ ORDER BY
     })
 
   })
-
-
-
 })
+//=============================================================================
+
+router.post("/profile", (req, res) => {
+  let user_id = req.body.user_id;
+
+  let quary = `
+  SELECT
+	u.id,
+    u.user_id as user_at,
+    u.user_name as user_id,
+    u.profile_image,
+    u.description,
+    COUNT(DISTINCT f2.follow_user_id) AS follow_count,
+    count(distinct f1.user_id) AS follower_count,
+    COUNT(DISTINCT p.image_id) AS pic
+  FROM
+      infixel_db.users u
+  LEFT JOIN
+      infixel_db.follows f1 ON u.id = f1.follow_user_id
+  left Join
+    infixel_db.follows f2 ON u.id = f2.user_id
+  LEFT JOIN
+      infixel_db.images i ON u.id = i.user_id
+  LEFT JOIN
+      infixel_db.pics p ON i.id = p.image_id
+  where u.id = '${user_id}'
+  group BY
+      u.id, u.user_id, u.user_name, u.profile_image;
+    `
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({error: "연결 실패"})
+    }
+    connection.query(quary, (queryErr, results) => {
+      connection.release();
+      if(queryErr) {
+        return res.status(500).json({results: false})
+      }
+      let r = results[0]
+      let user = {
+        id: r.id,
+        user_at: r.user_at,
+        user_id: r.user_id,
+        pic: r.pic,
+        follow: r.follow_count,
+        follower: r.follower_count,
+        description: r.description == null ? "" : r.description,
+        profile_image: process.env.URL + "/image/resjpg?filename=" + r.profile_image + "&profileimage=true"
+      }
+      res.json(user)
+    })
+  })
+})
+//=============================================================================
+
+
+router.post("/follow", (req, res) => {
+  let userId = req.body.user_id
+  let followUser = req.body.follow_user_id
+  
+  let query = `
+    insert into infixel_db.follows value ('${userId}', '${followUser}');
+  `
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "MySql 연결 실패" });
+    }
+
+    connection.query(query, (queryErr, results) => {
+      connection.release();
+      if (queryErr) {
+        console.log(queryErr)
+        return res.status(500).json({ result: false });
+      }
+      return res.json({ result: true });
+    });
+  })
+})
+//=============================================================================
+
+router.post("/unfollow", (req, res) => {
+  let userId = req.body.user_id
+  let followUser = req.body.unfollow_user_id
+
+  let query = `delete from infixel_db.follows where user_id = '${userId}' AND follow_user_id = '${followUser}';`
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "MySql 연결 실패" });
+    }
+
+    connection.query(query, (queryErr, results) => {
+      connection.release();
+
+      if (queryErr) {
+        return res.status(500).json({ result: false });
+      }
+      return res.json({ result: true });
+    });
+  });
+})
+
+//=============================================================================
+
+router.post("/followornot", (req, res) => {
+  let userId = req.body.user_id
+  let followUser = req.body.follow_user_id
+
+  let query = `select * from infixel_db.follows where user_id = '${userId}' and follow_user_id = '${followUser}';`
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error : "MySql 연결 시류ㅐ"});
+    }
+    connection.query(query, (queryErr, results) => {
+      connection.release();
+      if (queryErr) {
+        return res.status(500).json({ error: queryErr });
+      }
+      if (results.length == 1) {
+        return res.json(true);
+      } else {
+        return res.json(false)
+      }
+    });
+  })
+})
+//=============================================================================
+
+
+
+
+//키 ID : QYN32RD8A2
+//팀 ID : M3KH86595Z
+
+
+
+router.post("/device-token", (req, res) => {
+  let token = req.body.device_token
+  let user_id = req.body.user_id
+  console.log(`Device Token: ${token}`)
+  console.log(`User : ${user_id}`)
+
+  sendNotification(token)
+  
+})
+//=============================================================================
+
+
+
+
+
 
 
 //=============================================================================

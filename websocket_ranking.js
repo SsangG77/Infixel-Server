@@ -127,7 +127,7 @@ function setupWebSocket(server) {
                 id: result.id,
                 link: process.env.URL + "/image/resjpg?filename=" + result.image_name,
                 user_nick: result.user_at,
-                profile_image: process.env.URL + "/image/resjpg?filename=" + result.profile_image,
+                profile_image: process.env.URL + "/image/resjpg?filename=" + result.profile_image + "&profileimage=true",
                 pic: result.pic,
                 description: result.description
             }
@@ -147,17 +147,6 @@ function setupWebSocket(server) {
         }
         let user_ranking = []
 
-        // results.forEach((result, i) => {
-        //     let json = {
-        //         rank: i +1,
-        //         id: result.id,
-        //         user_id: result.user_id,
-        //         profile_image: process.env.URL + "/image/resjpg?filename=" + result.profile_image,
-        //         follower_count: result.follower_count.toString(),
-        //         pic_count: result.total_likes.toString()
-        //     }
-        //     user_ranking.push(json)
-        // })
 
         for(const [i, result] of results.entries()) {
             try {

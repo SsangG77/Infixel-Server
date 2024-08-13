@@ -18,9 +18,6 @@ router.post("/set", (req, res) => {
   let user_id = req.body.user_id;
   let image_id = req.body.image_id;
 
-  console.log("=============== comment set ===============");
-  console.log(`content : ${content}, image_id : ${image_id}, created : ${created_at}, user_id : ${user_id}`);
-  console.log("");
 
   let query = `insert into infixel_db.comments values ('${id}','${content}', '${user_id}', '${image_id}', '${created_at}');`;
   
@@ -79,7 +76,7 @@ router.post("/get", (req, res) => {
           user_id: results[i].user_id,
           image_id: results[i].image_id,
           user_name: results[i].user_name,
-          profile_image: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image,
+          profile_image: process.env.URL + "/image/resjpg?filename=" + results[i].profile_image + "&profileimage=true",
         };
         comment_results.push(comment);
       }
@@ -108,7 +105,6 @@ router.post("/count", (req, res) => {
       if (queryErr) {
         return res.status(500).json({ error: "쿼리 실행 실패" });
       }
-      console.log(results[0].count)
       res.send(results[0].count.toString())
 
     });
