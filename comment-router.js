@@ -74,33 +74,10 @@ router.post("/set", (req, res) => {
             connection.release();
             return res.json({ result: true})
           })
-
-
         })
-
-
       })
-
     })
-
-
-
   })
-
-
-  // pool.getConnection((err, connection) => {
-  //   if (err) {
-  //     return res.status(500).json({ error: "MySQL 연결 실패" });
-  //   }
-
-  //   connection.query(insertQuery, (queryErr, results) => {
-  //     connection.release();
-  //     if (queryErr) {
-  //       return res.status(500).json({ result: false });
-  //     }
-  //     return res.json({ result: true });
-  //   });
-  // });
 });
 //============================================================
 

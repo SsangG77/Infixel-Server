@@ -43,8 +43,6 @@ function sendNotification(deviceToken, alertText) {
 
   // 알림 전송
   apnProvider.send(notification, deviceToken).then(result => {
-    // console.log("Sent:", result.sent.length); // 성공적으로 전송된 디바이스 수
-    // console.log("Failed:", result.failed.length); // 실패한 디바이스 수
 
     // 실패한 경우의 상세 정보
     if (result.failed.length > 0) {

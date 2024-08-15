@@ -217,23 +217,73 @@ router.post("/follow", (req, res) => {
   let userId = req.body.user_id
   let followUser = req.body.follow_user_id
   
-  let query = `
+  let insertQuery = `
     insert into infixel_db.follows value ('${userId}', '${followUser}');
   `
+
+  let getUserQuery = `select user_name, device_token from infixel_db.users where id = '${followUser}'`
+
   pool.getConnection((err, connection) => {
     if (err) {
-      return res.status(500).json({ error: "MySql 연결 실패" });
+      return res.status(500).json({ error : "MYSQL 연결 실패"})
     }
 
-    connection.query(query, (queryErr, results) => {
-      connection.release();
-      if (queryErr) {
-        console.log(queryErr)
-        return res.status(500).json({ result: false });
+    connection.beginTransaction((err) => {
+      if (err) {
+        connection.release();
+        return res.status(500).json({ error : "트랜직션 시작 실패."})
       }
-      return res.json({ result: true });
-    });
+
+      connection.query(getUserQuery, (queryErr, results) => {
+        if (queryErr) {
+          return connection.rollback(() => {
+            connection.release();
+            return res.status(500).json({ result : false})
+          })
+        }
+
+        let device_token = results[0].device_token;
+        let user_name = results[0].user_name;
+        sendNotification(device_token, `'${user_name}'님이 회원님을 팔로우 했습니다.`);
+
+        connection.query(insertQuery, (queryErr) => {
+          if (queryErr) {
+            return connection.rollback(() => {
+              connection.release();
+              return res.status(500).json({ result : false})
+            })
+          }
+          connection.release();
+          return res.json({ result: true})
+        })
+
+
+
+      })
+
+
+    })
+
+    
   })
+
+
+
+  // pool.getConnection((err, connection) => {
+  //   if (err) {
+  //     return res.status(500).json({ error: "MySql 연결 실패" });
+  //   }
+
+  //   connection.query(insertQuery, (queryErr, results) => {
+  //     connection.release();
+  //     if (queryErr) {
+  //       console.log(queryErr)
+  //       return res.status(500).json({ result: false });
+  //     }
+  //     return res.json({ result: true });
+  //   });
+  // })
+
 })
 //=============================================================================
 
@@ -300,8 +350,7 @@ router.post("/device-token", (req, res) => {
   console.log(`Device Token: ${token}`)
   console.log(`User : ${user_id}`)
 
-  sendNotification(token)
-  
+  res.send({result: true})
 })
 //=============================================================================
 
