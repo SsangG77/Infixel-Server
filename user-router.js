@@ -13,13 +13,20 @@ const { pool } = require("./database");
 router.post("/login", (req, res) => {
   let req_id = req.body.userId;
   let req_pw = req.body.userPW;
+  let device_token = req.body.deviceToken
   console.log(`=== 로그인 요청 -- id : ${req_id} / pw : ${req_pw} ===`);
 
-  let query = `select * from infixel_db.users 
+  let select_query = `select * from infixel_db.users 
   where 
   login_id = '${req_id}' 
   AND 
   login_pw = '${req_pw}'`;
+
+  let update_query = `
+    UPDATE infixel_db.users set device_token = '${device_token}' where login_id = '${req_id}' and login_pw = '${req_pw}'
+  `
+
+
 
   pool.getConnection((err, connection) => {
     if (err) {
@@ -28,12 +35,24 @@ router.post("/login", (req, res) => {
       return res.status(500).json({ error: "MySQL 연결 실패" });
     }
 
-    connection.query(query, (queryErr, results) => {
-      connection.release(); // 연결 반환
+    connection.query(select_query, (queryErr, results) => {
+      
       if (queryErr) {
         console.log("쿼리 실행 실패")
+        connection.release(); // 연결 반환
         return res.status(500).json({ error: "쿼리 실행 실패" });
       }
+
+      if (results[0].device_token != device_token) { //디바이스 토큰이 다를 경우에는 바꿔줘야함
+        connection.query(update_query, (queryErr) => {
+          
+          if (queryErr) {
+            connection.release();
+            return res.status(500).json({ error : "쿼리 실행 실패"})
+          }
+        })
+      }
+
       let response = {
         id: "",
         user_id: "",
@@ -59,6 +78,7 @@ router.post("/login", (req, res) => {
       } else {
         res.json(response);
       }
+      connection.release();
 
     });
   });
@@ -69,14 +89,16 @@ router.post("/login", (req, res) => {
 
 router.post("/signup", (req, res) => {
   let id = uuidv4();
-  let login_email = req.body.userEmail; //"test@test"; //이메일
-  let login_pw = req.body.userPW; //"test"; //비밀번호
+  let login_email = req.body.userEmail;     //"test@test"; //이메일
+  let login_pw = req.body.userPW;           //"test"; //비밀번호
   let confirm_pw = req.body.confirmPW;
-  let user_name = req.body.userName; //"testname"; //닉네임
-  let user_id = req.body.userId; //"@test"; //@
+  let user_name = req.body.userName;        //"testname"; //닉네임
+  let user_id = req.body.userId;            //"@test"; //@
+  let device_token = req.body.deviceToken   //유저 디바이스 토큰
 
-  let insert_query = `insert into infixel_db.users (id, created_at, login_id, login_pw, user_id, user_name) values ('${id}', CURRENT_TIMESTAMP, '${login_email}', '${login_pw}', '${user_id}', '${user_name}')`;
+  let insert_query = `insert into infixel_db.users (id, created_at, login_id, login_pw, user_id, user_name, device_token) values ('${id}', CURRENT_TIMESTAMP, '${login_email}', '${login_pw}', '${user_id}', '${user_name}', ${device_token})`;
   let select_query = `select * from infixel_db.users where login_id = '${login_email}' AND login_pw = '${login_pw}'`;
+
 
   connection.query(select_query, (queryErr, results) => {
     connection.release(); // 연결 반환
@@ -339,19 +361,6 @@ router.post("/followornot", (req, res) => {
 
 
 
-//키 ID : QYN32RD8A2
-//팀 ID : M3KH86595Z
-
-
-
-router.post("/device-token", (req, res) => {
-  let token = req.body.device_token
-  let user_id = req.body.user_id
-  console.log(`Device Token: ${token}`)
-  console.log(`User : ${user_id}`)
-
-  res.send({result: true})
-})
 //=============================================================================
 
 

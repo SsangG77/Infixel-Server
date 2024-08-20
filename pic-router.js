@@ -23,11 +23,13 @@ router.post("/up", (req, res) => {
     ON 
       infixel_db.users.id = infixel_db.images.user_id
     WHERE 
-      infixel_db.images.id = '${image_id}';
+      infixel_db.images.id = ?
+    AND
+      infixel_db.images.user_id != ?;
   `;
 
   let insertPicQuery = `
-    INSERT INTO infixel_db.pics (user_id, image_id) VALUES ('${user_id}', '${image_id}');
+    INSERT INTO infixel_db.pics (user_id, image_id) VALUES (?, ?);
   `;
 
   pool.getConnection((err, connection) => {
@@ -41,7 +43,7 @@ router.post("/up", (req, res) => {
         return res.status(500).json({ error: "트랜잭션 시작 실패." });
       }
 
-      connection.query(getUserQuery, (queryErr, results) => {
+      connection.query(getUserQuery, [image_id, user_id], (queryErr, results) => {
         if (queryErr) {
           return connection.rollback(() => {
             connection.release();
@@ -50,10 +52,9 @@ router.post("/up", (req, res) => {
         }
 
         let device_token = results[0].device_token;
-        console.log(device_token);
         sendNotification(device_token, "회원님의 사진을 Pic!했습니다.");
 
-        connection.query(insertPicQuery, (queryErr, results) => {
+        connection.query(insertPicQuery, [user_id, image_id], (queryErr, results) => {
           if (queryErr) {
             return connection.rollback(() => {
               connection.release();

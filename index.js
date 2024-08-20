@@ -38,8 +38,17 @@ function sendNotification(deviceToken, alertText) {
   let notification = new apn.Notification();
 
   notification.topic = "com.sangjin.Infixel"; // 앱의 번들 식별자
-  notification.alert = alertText; // 푸시 알림 메시지
-  notification.sound = "default"; // 기본 알림 소리 설정
+  notification.alert = alertText;             // 푸시 알림 메시지
+  notification.sound = "default";             // 기본 알림 소리 설정
+  notification.payload = {
+    "message" : alertText
+  }
+  notification.aps = {
+    "alert": alertText,
+    "sound": "default",
+    "content-available": 1                    // 백그라운드 실행 플래그
+  };
+  
 
   // 알림 전송
   apnProvider.send(notification, deviceToken).then(result => {
