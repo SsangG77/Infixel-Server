@@ -14,7 +14,7 @@ router.post("/login", (req, res) => {
   let req_id = req.body.userId;
   let req_pw = req.body.userPW;
   let device_token = req.body.deviceToken
-  console.log(`=== 로그인 요청 -- id : ${req_id} / pw : ${req_pw} ===`);
+  console.log(`=== 로그인 요청 -- id : ${req_id} / pw : ${req_pw} / 디바이스 토큰 : ${device_token} ===`);
 
   let select_query = `select * from infixel_db.users 
   where 
@@ -44,7 +44,7 @@ router.post("/login", (req, res) => {
       }
 
       if (results[0].device_token != device_token) { //디바이스 토큰이 다를 경우에는 바꿔줘야함
-        connection.query(update_query, (queryErr) => {
+        connection.query(update_query, (queryErr, results) => {
           
           if (queryErr) {
             connection.release();
@@ -358,7 +358,10 @@ router.post("/followornot", (req, res) => {
 })
 //=============================================================================
 
-
+// router.post("/device-token", (req, res) => {
+//   let device_token = req.body.device_token
+//   let user_id = 
+// })
 
 
 //=============================================================================

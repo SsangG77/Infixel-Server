@@ -214,7 +214,7 @@ async function getResizedImage(imagePath, width, height) {
 
   // WebSocket 연결 처리
   wss.on('connection', (ws) => { //새로운 클라이언트와 connection 이벤트가 발생했을때 동작한다.
-    console.log('Client connected');
+    // console.log('Client connected');
 
     // const sendRankings = () => { 
     //   ws.send(JSON.stringify(ranking_images)); //데이터를 json문자열로 변환하여 클라이언트에게 전송한다.
@@ -224,7 +224,7 @@ async function getResizedImage(imagePath, width, height) {
 
     ws.on('close', () => {
       //clearInterval(interval);
-      console.log('Client disconnected');
+    //   console.log('Client disconnected');
     });
   });
 

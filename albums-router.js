@@ -221,13 +221,22 @@ router.post("/add", upload.single('file'), async (req, res) => {
       
     })
   })
+})
+//=========================================================================
 
 
+router.post("/getinfo", (req, res) => {
+  let album_id = req.body.album_id
   
+
+
 
 })
 
 
 
 
+
+
+//=========================================================================
 module.exports = router;
