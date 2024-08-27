@@ -363,7 +363,7 @@ router.post("/myimage", (req, res)=> {
     connection.query(query, (queryErr, results) => {
       connection.release();
       if (queryErr) {
-        return res.status(500).json({ results: false });
+        return res.status(500).json({ result: false });
       }
 
       let images = [];

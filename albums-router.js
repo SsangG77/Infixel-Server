@@ -227,7 +227,35 @@ router.post("/add", upload.single('file'), async (req, res) => {
 
 router.post("/getinfo", (req, res) => {
   let album_id = req.body.album_id
+
+  let query = "select album_name, profile_image from infixel_db.albums where id = ?"
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "mysql 연결 실패"})
+    }
+
+    connection.query(query, [album_id], (querryErr, results) => {
+      connection.release();
+      if(querryErr) {
+        return res.status(500).json({ result: false})
+      }
+
+      fs.readFile(path.join(__dirname, `images/${results[0].profile_image}`), (err, data) => {
+        if (err) {
+          return res.status(500).send("Error reading image")
+        }
+
+        res.json({
+          image: data.toString('base64'),
+          album_name: results[0].album_name
+        })
+      })
+    })
+  })
+
   
+
 
 
 
