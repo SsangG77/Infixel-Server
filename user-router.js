@@ -18,9 +18,9 @@ router.post("/login", (req, res) => {
 
   let select_query = `select * from infixel_db.users 
   where 
-  login_id = '${req_id}' 
+  login_id = ?
   AND 
-  login_pw = '${req_pw}'`;
+  login_pw = ?`;
 
   let update_query = `
     UPDATE infixel_db.users set device_token = '${device_token}' where login_id = '${req_id}' and login_pw = '${req_pw}'
@@ -35,7 +35,7 @@ router.post("/login", (req, res) => {
       return res.status(500).json({ error: "MySQL 연결 실패" });
     }
 
-    connection.query(select_query, (queryErr, results) => {
+    connection.query(select_query, [req_id, req_pw], (queryErr, results) => {
       
       if (queryErr) {
         console.log("쿼리 실행 실패")

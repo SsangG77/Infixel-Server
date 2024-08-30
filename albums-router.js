@@ -203,15 +203,13 @@ router.post("/add", upload.single('file'), async (req, res) => {
     return res.status(400).send('No file uploaded');
   }
 
-
-  let query = `insert into infixel_db.albums (id, album_name, user_id, profile_image) values
-   ('${albumId}', '${album_name}', '${user_id}', '${filePath}');`
+  let query = `insert into infixel_db.albums (id, album_name, user_id, profile_image) values (?, ?, ?, ?);`
 
   pool.getConnection((err, connection) => {
     if (err) {
       return res.status(500).json({error: "MYSQL 연결 실패"});
     }
-    connection.query(query, (queryErr, results) => {
+    connection.query(query, [albumId, album_name, user_id, filePath], (queryErr, results) => {
       connection.release();
 
       if (queryErr) {
@@ -223,8 +221,39 @@ router.post("/add", upload.single('file'), async (req, res) => {
   })
 })
 //=========================================================================
+router.post("/update", upload.single('file'), async (req, res) => {
+  const file = req.file;
+  const { album_id, album_name } = req.body;
+  const filePath = file.filename;
+
+  if (!file) {
+    return res.status(400).send('No file uploaded');
+  }
+
+  let query = "UPDATE infixel_db.albums SET profile_image = ?, album_name = ? where id = ?"
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({error: "MYSQL 연결 실패"});
+    }
+    connection.query(query, [filePath, album_name, album_id], (queryErr, results) => {
+      connection.release();
+
+      if (queryErr) {
+        return res.status(500).json({ result: false });
+      }
+      res.send({ message: '앨범 수정 완료', filePath: filePath });
+      
+    })
+  })
+})
 
 
+
+
+
+
+//=========================================================================
 router.post("/getinfo", (req, res) => {
   let album_id = req.body.album_id
 
@@ -253,9 +282,36 @@ router.post("/getinfo", (req, res) => {
       })
     })
   })
+})
+//=========================================================================
 
-  
 
+router.post("/delete-image", (req, res) => {
+  let image_id = req.body.image_id;
+  let album_id = req.body.album_id;
+
+  let query = "delete from infixel_db.album_images where image_id = ? AND album_id = ?;"
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.log("MySQL 연결 실패");
+      console.log(err)
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    connection.query(query, [image_id, album_id], (queryErr, results) => {
+      if(queryErr) {
+        connection.release();
+        return res.status(500).json({ error : "쿼리 실행 실퍄"})
+      }
+
+      res.json({ result: true })
+    })
+
+
+
+
+  })
 
 
 

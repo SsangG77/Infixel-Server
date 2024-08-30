@@ -136,7 +136,7 @@ router.post("/getimagefromid", (req, res) => {
 FROM infixel_db.images
 JOIN infixel_db.users ON infixel_db.images.user_id = infixel_db.users.id
 LEFT JOIN infixel_db.pics ON infixel_db.images.id = infixel_db.pics.image_id
-WHERE infixel_db.images.id = '${imageId}'
+WHERE infixel_db.images.id = ?
 GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.user_id;
       `
   
@@ -147,7 +147,7 @@ GROUP BY infixel_db.images.id, infixel_db.users.profile_image, infixel_db.users.
       return res.status(500).json({ error: "MySQL 연결 실패" });
     }
 
-    connection.query(query, (queryErr, results) => {
+    connection.query(query, [imageId], (queryErr, results) => {
       connection.release(); // 연결 반환
       if (queryErr) {
         return res.status(500).json({ error: "쿼리 실행 실패" });
@@ -352,7 +352,7 @@ router.post("/myimage", (req, res)=> {
   let user_id = req.body.user_id;
 
   let query = `
-    select id, image_name from infixel_db.images where user_id = '${user_id}';
+    select id, image_name from infixel_db.images where user_id = ?;
         `
 
   pool.getConnection((err, connection) => {
@@ -360,7 +360,7 @@ router.post("/myimage", (req, res)=> {
       return res.status(500).json({ error: "MySql 연결 실패" });
     }
 
-    connection.query(query, (queryErr, results) => {
+    connection.query(query, [user_id], (queryErr, results) => {
       connection.release();
       if (queryErr) {
         return res.status(500).json({ result: false });
