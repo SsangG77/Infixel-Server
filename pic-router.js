@@ -10,7 +10,6 @@ const { pool } = require("./database");
 router.post("/up", (req, res) => {
   let image_id = req.body.image_id;
   let user_id = req.body.user_id;
-  console.log(image_id);
 
   let getUserQuery = `
     SELECT 

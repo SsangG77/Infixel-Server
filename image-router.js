@@ -381,6 +381,53 @@ router.post("/myimage", (req, res)=> {
 
 })
 
+//=============================================================================
+
+router.post("/delete", (req, res) => {
+  let image_id = req.body.image_id;
+
+  // 데이터베이스에서 image_name을 조회하는 쿼리
+  let query = `SELECT image_name FROM infixel_db.images WHERE id = ?`;
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    connection.query(query, [image_id], (queryErr, results) => {
+      connection.release();
+
+      if (queryErr) {
+        return res.status(500).json({ error: "쿼리 실행 실패" });
+      }
+
+      if (results.length === 0) {
+        return res.status(404).json({ error: "이미지를 찾을 수 없습니다." });
+      }
+
+      let imageName = results[0].image_name;
+
+      // 원본 이미지 파일 경로 (이미지 저장 폴더)
+      let originalPath = path.join(__dirname, "images", imageName);
+
+      // 삭제된 이미지 파일을 이동시킬 경로 (delete 폴더)
+      let deletePath = path.join(__dirname, "delete", imageName);
+
+      // 파일을 삭제 폴더로 이동시키는 함수
+      fs.rename(originalPath, deletePath, (err) => {
+        if (err) {
+          return res.status(500).json({ error: "파일 이동 실패" });
+        }
+
+        return res.json({ message: "이미지가 delete 폴더로 이동되었습니다." });
+      });
+    });
+  });
+});
+
+
+
+
 
 
 

@@ -1,5 +1,9 @@
 //라이브러리
 const express = require("express");
+const path = require("path");
+const fs = require('fs');
+const multer = require('multer');
+
 let router = express.Router();
 
 
@@ -20,10 +24,11 @@ router.post("/login", (req, res) => {
   where 
   login_id = ?
   AND 
-  login_pw = ?`;
+  login_pw = ?
+  `;
 
   let update_query = `
-    UPDATE infixel_db.users set device_token = '${device_token}' where login_id = '${req_id}' and login_pw = '${req_pw}'
+    UPDATE infixel_db.users set device_token = ? where login_id = ? and login_pw = ?
   `
 
 
@@ -44,7 +49,7 @@ router.post("/login", (req, res) => {
       }
 
       if (results[0].device_token != device_token) { //디바이스 토큰이 다를 경우에는 바꿔줘야함
-        connection.query(update_query, (queryErr, results) => {
+        connection.query(update_query, [device_token, req_id, req_pw], (queryErr, results) => {
           
           if (queryErr) {
             connection.release();
@@ -85,7 +90,7 @@ router.post("/login", (req, res) => {
 });
 //login end
 
-//=============================================
+//==============================================================================
 
 router.post("/signup", (req, res) => {
   let id = uuidv4();
@@ -179,7 +184,7 @@ ORDER BY
 
   })
 })
-//=============================================================================
+//===============================================================================
 
 router.post("/profile", (req, res) => {
   let user_id = req.body.user_id;
@@ -232,7 +237,7 @@ router.post("/profile", (req, res) => {
     })
   })
 })
-//=============================================================================
+//===============================================================================
 
 
 router.post("/follow", (req, res) => {
@@ -278,36 +283,11 @@ router.post("/follow", (req, res) => {
           connection.release();
           return res.json({ result: true})
         })
-
-
-
       })
-
-
     })
-
-    
   })
-
-
-
-  // pool.getConnection((err, connection) => {
-  //   if (err) {
-  //     return res.status(500).json({ error: "MySql 연결 실패" });
-  //   }
-
-  //   connection.query(insertQuery, (queryErr, results) => {
-  //     connection.release();
-  //     if (queryErr) {
-  //       console.log(queryErr)
-  //       return res.status(500).json({ result: false });
-  //     }
-  //     return res.json({ result: true });
-  //   });
-  // })
-
 })
-//=============================================================================
+//===============================================================================
 
 router.post("/unfollow", (req, res) => {
   let userId = req.body.user_id
@@ -358,13 +338,69 @@ router.post("/followornot", (req, res) => {
 })
 //=============================================================================
 
-// router.post("/device-token", (req, res) => {
-//   let device_token = req.body.device_token
-//   let user_id = 
-// })
+router.post("/profile-image", (req, res) => {
+  let user_id = req.body.user_id
+
+  let query = "select profile_image from infixel_db.users where id = ?"
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error: "mysql 연결 실패"})
+    }
+
+    connection.query(query, [user_id], (querryErr, results) => {
+      connection.release();
+      if(querryErr) {
+        return res.status(500).json({ result: false})
+      }
+
+      fs.readFile(path.join(__dirname, `images/${results[0].profile_image}`), (err, data) => {
+        if (err) {
+          return res.status(500).send("Error reading image")
+        }
+
+        res.json({
+          image: data.toString('base64')
+        })
+      })
+    })
+  })
+})
 
 
 //=============================================================================
+
+const uploadDir = 'images';
+if (!fs.existsSync(uploadDir)){
+    fs.mkdirSync(uploadDir);
+}
+
+// 저장 위치 및 파일 이름 설정
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, `${process.env.IMAGE_FOLDER}/`);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
+
+router.post("/update", upload.single('file'), async (req, res) => {
+  const file = req.file;
+  const { nick_name, user_id, description } = req.body;
+  const filePath = file.filename;
+
+  if (!file) {
+    return res.status(400).send('No file uploaded');
+  }
+
+
+  res.send({ message: '프로필 수정 완료', filePath: filePath });
+
+})
 
 
 
