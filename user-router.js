@@ -1,6 +1,7 @@
 //라이브러리
 const express = require("express");
 const path = require("path");
+const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const multer = require('multer');
 
@@ -8,7 +9,7 @@ let router = express.Router();
 
 
 //다른 파일
-const { formatDate, sendNotification } = require("./index");
+const { formatDate, sendNotification, myPrint } = require("./index");
 const { pool } = require("./database");
 
 //============================================================
@@ -18,7 +19,8 @@ router.post("/login", (req, res) => {
   let req_id = req.body.userId;
   let req_pw = req.body.userPW;
   let device_token = req.body.deviceToken
-  console.log(`=== 로그인 요청 -- id : ${req_id} / pw : ${req_pw} / 디바이스 토큰 : ${device_token} ===`);
+  // console.log(`=== 로그인 요청 -- id : ${req_id} / pw : ${req_pw} / 디바이스 토큰 : ${device_token} ===`);
+  myPrint("로그인 요청", `id : ${req_id}\npw: ${req_pw}\ndevice token: ${device_token}`)
 
   let select_query = `select * from infixel_db.users 
   where 
@@ -57,6 +59,7 @@ router.post("/login", (req, res) => {
           }
         })
       }
+      
 
       let response = {
         id: "",
@@ -89,6 +92,86 @@ router.post("/login", (req, res) => {
   });
 });
 //login end
+
+//==============================================================================
+
+router.post("/kakaologin", (req, res) => {
+  let id = "kakao_"+uuidv4();
+  let login_id = req.body.kakao_id;
+  let nick_name = req.body.nick_name;
+  let device_token = req.body.device_token;
+
+  myPrint("/kakaologin", ` id : ${id} \n login_id : ${login_id} \n nick_name : ${nick_name} \n device_token : ${device_token}`)
+
+  let select_query = "select * from infixel_db.users where login_id = ?"
+  let insert_query = "insert into infixel_db.users (id, created_at, login_id, user_name, device_token, profile_image) values (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)"
+  let update_query = "update infixel_db.users set device_token = ? where login_id = ?"
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.log("MySQL 연결 실패");
+      console.log(err)
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    connection.query(select_query, [login_id], (queryErr, results) => {
+      
+      if (queryErr) {
+        connection.release(); // 연결 반환
+        return res.status(500).json({ error: "쿼리 실행 실패" });
+      }
+  
+      if (results.length >= 1) { //가입된 회원이 있을때
+        if (results[0].device_token != device_token) { //디바이스 토큰이 다를 때
+  
+          connection.query(update_query, [device_token, login_id], (queryErr, results) => {
+            if (queryErr) {
+              connection.release();
+              return res.status(500).json({ error: "업데이트 쿼리 실행 실패"})
+            }
+          }) //update query
+        } 
+          return res.json({
+            id : results[0].id,
+            user_at : results[0].user_id == null ? "" : results[0].user_id,
+            user_name : results[0].user_name == null ? "" : results[0].user_name,
+            created_at : formatDate(true, results[0].created_at),
+            profile_image : process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
+            description: results[0].description == null ? "" : results[0].description,
+            isLogin: true
+
+
+          })
+        
+      } else {
+        connection.query(insert_query, [id, login_id, nick_name, device_token, "default.png"], (queryErr, results) => {
+          if (queryErr) {
+            return res.status(500).json({ error: "쿼리 실행 실패" });
+          }
+
+          return res.json({
+            id : id,
+            user_at : "",
+            user_name : nick_name,
+            created_at : "",
+            profile_image : process.env.URL + "/image/resjpg?filename=default.png&profileimage=true",
+            description: "",
+            isLogin: true
+
+
+          })
+          
+        });
+      }
+      
+    });
+    connection.release();  
+  })
+})
+
+
+
+
 
 //==============================================================================
 

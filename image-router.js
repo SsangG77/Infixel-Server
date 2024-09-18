@@ -9,7 +9,7 @@ let router = express.Router();
 require("dotenv").config();
 
 //다른 파일
-const {folder_name } = require("./index");
+const {folder_name, myPrint } = require("./index");
 const { pool } = require("./database");
 
 //=================================================================
@@ -395,13 +395,13 @@ router.post("/delete", (req, res) => {
     }
 
     connection.query(query, [image_id], (queryErr, results) => {
-      connection.release();
-
       if (queryErr) {
+        connection.release();
         return res.status(500).json({ error: "쿼리 실행 실패" });
       }
 
       if (results.length === 0) {
+        connection.release();
         return res.status(404).json({ error: "이미지를 찾을 수 없습니다." });
       }
 
@@ -416,14 +416,36 @@ router.post("/delete", (req, res) => {
       // 파일을 삭제 폴더로 이동시키는 함수
       fs.rename(originalPath, deletePath, (err) => {
         if (err) {
+          connection.release();
           return res.status(500).json({ error: "파일 이동 실패" });
         }
 
-        return res.json({ message: "이미지가 delete 폴더로 이동되었습니다." });
+        // 1. album_images 테이블에서 image_id에 해당하는 레코드 삭제
+        let deleteAlbumImagesQuery = `DELETE FROM infixel_db.album_images WHERE image_id = ?`;
+
+        connection.query(deleteAlbumImagesQuery, [image_id], (albumImagesErr) => {
+          if (albumImagesErr) {
+            connection.release();
+            return res.status(500).json({ error: "album_images 삭제 실패" });
+          }
+
+          // 2. images 테이블에서 이미지 삭제
+          let deleteQuery = `DELETE FROM infixel_db.images WHERE id = ?`;
+
+          connection.query(deleteQuery, [image_id], (deleteErr, deleteResults) => {
+            connection.release();
+            if (deleteErr) {
+              return res.status(500).json({ error: "이미지 삭제 실패" });
+            }
+
+            return res.json({ message: "이미지가 delete 폴더로 이동되고, 데이터베이스에서 삭제되었습니다." });
+          });
+        });
       });
     });
   });
 });
+
 
 
 

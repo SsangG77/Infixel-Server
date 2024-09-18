@@ -13,7 +13,7 @@ app.use(express.json());
 
 const folder_name = "images";
 
-module.exports = { folder_name, formatDate, sendNotification };
+module.exports = { folder_name, formatDate, sendNotification, myPrint };
 
 app.use("/pic", require("./pic-router"));
 app.use("/user", require("./user-router"));
@@ -88,6 +88,13 @@ function formatDate(type, date_val) {
 
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
+}
+
+function myPrint(title, text) {
+  console.log(`====================== ${title} ======================`)
+  console.log(text)
+  console.log("")
+
 }
 
 
