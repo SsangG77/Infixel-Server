@@ -18,7 +18,7 @@ const { pool } = require("./database");
 router.post("/login", (req, res) => {
   let req_id = req.body.userId;
   let req_pw = req.body.userPW;
-  let device_token = req.body.deviceToken
+  let device_token = req.body.deviceToken;
   // console.log(`=== 로그인 요청 -- id : ${req_id} / pw : ${req_pw} / 디바이스 토큰 : ${device_token} ===`);
   myPrint("로그인 요청", `id : ${req_id}\npw: ${req_pw}\ndevice token: ${device_token}`)
 
@@ -33,6 +33,15 @@ router.post("/login", (req, res) => {
     UPDATE infixel_db.users set device_token = ? where login_id = ? and login_pw = ?
   `
 
+  let response = {
+    id: "",
+    user_id: "",
+    user_name: "",
+    created_at: "",
+    profile_image: "",
+    description: "",
+    isLogin: false,
+  };
 
 
   pool.getConnection((err, connection) => {
@@ -40,6 +49,10 @@ router.post("/login", (req, res) => {
       console.log("MySQL 연결 실패");
       console.log(err)
       return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    if (req_id == undefined && req_pw == undefined) {
+      res.json(response)
     }
 
     connection.query(select_query, [req_id, req_pw], (queryErr, results) => {
@@ -50,27 +63,20 @@ router.post("/login", (req, res) => {
         return res.status(500).json({ error: "쿼리 실행 실패" });
       }
 
-      if (results[0].device_token != device_token) { //디바이스 토큰이 다를 경우에는 바꿔줘야함
-        connection.query(update_query, [device_token, req_id, req_pw], (queryErr, results) => {
-          
-          if (queryErr) {
-            connection.release();
-            return res.status(500).json({ error : "쿼리 실행 실패"})
-          }
-        })
+      if (results.length > 0) {
+        if (results[0].device_token != device_token) { //디바이스 토큰이 다를 경우에는 바꿔줘야함
+          connection.query(update_query, [device_token, req_id, req_pw], (queryErr, results) => {
+            
+            if (queryErr) {
+              connection.release();
+              return res.status(500).json({ error : "쿼리 실행 실패"})
+            }
+          })
+        }
       }
+
       
-
-      let response = {
-        id: "",
-        user_id: "",
-        user_name: "",
-        created_at: "",
-        profile_image: "",
-        description: "",
-        isLogin: false,
-      };
-
+      
       if (results.length == 1) {
         res.json(
           (response = {
@@ -139,8 +145,6 @@ router.post("/kakaologin", (req, res) => {
             profile_image : process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
             description: results[0].description == null ? "" : results[0].description,
             isLogin: true
-
-
           })
         
       } else {
@@ -168,12 +172,87 @@ router.post("/kakaologin", (req, res) => {
     connection.release();  
   })
 })
+//==========================================================================================
+
+router.post("/applelogin", (req, res) => {
+  let id = "apple_" + uuidv4();
+  let login_id = req.body.user_id;
+  let nick_name = req.body.nick_name;
+  let device_token = req.body.device_token;
+
+  myPrint("/applelogin", ` id : ${id} \n nick_name : ${nick_name} \n login_id : ${login_id} \n device_token : ${device_token}`)
+
+  let select_query = "select * from infixel_db.users where login_id = ?"
+  let insert_query = "insert into infixel_db.users (id, created_at, nick_name, login_id, device_token, profile_image) values (?, CURRENT_TIMESTAMP, ?, ?, ?, 'default.png')"
+  let update_query = "update infixel_db.users set device_token = ? where login_id = ?"
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.log("MySQL 연결 실패");
+      console.log(err)
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    connection.query(select_query, [login_id], (queryErr, results) => {
+      
+      if (queryErr) {
+        connection.release(); // 연결 반환
+        return res.status(500).json({ error: "쿼리 실행 실패" });
+      }
+  
+      if (results.length >= 1) { //가입된 회원이 있을때
+        if (results[0].device_token != device_token) { //디바이스 토큰이 다를 때
+  
+          connection.query(update_query, [device_token, login_id], (queryErr, results) => {
+            if (queryErr) {
+              connection.release();
+              return res.status(500).json({ error: "업데이트 쿼리 실행 실패"})
+            }
+          }) //update query
+        } 
+          return res.json({
+            id : results[0].id,
+            user_at : results[0].user_id == null ? "" : results[0].user_id,
+            user_name : results[0].user_name == null ? "" : results[0].user_name,
+            created_at : formatDate(true, results[0].created_at),
+            profile_image : process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
+            description: results[0].description == null ? "" : results[0].description,
+            isLogin: true
+          })
+        
+      } else {
+        connection.query(insert_query, [id, login_id, nick_name, device_token, "default.png"], (queryErr, results) => {
+          if (queryErr) {
+            return res.status(500).json({ error: "쿼리 실행 실패" });
+          }
+
+          return res.json({
+            id : id,
+            user_at : "",
+            user_name : nick_name,
+            created_at : "",
+            profile_image : process.env.URL + "/image/resjpg?filename=default.png&profileimage=true",
+            description: "",
+            isLogin: true
+
+
+          })
+          
+        });
+      }
+      
+    });
+    connection.release();  
+  })
+
+
+})
+
+//===========================================================================================
 
 
 
-
-
-//==============================================================================
+//===========================================================================================
 
 router.post("/signup", (req, res) => {
   let id = uuidv4();
