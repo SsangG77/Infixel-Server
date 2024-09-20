@@ -183,7 +183,7 @@ router.post("/applelogin", (req, res) => {
   myPrint("/applelogin", ` id : ${id} \n nick_name : ${nick_name} \n login_id : ${login_id} \n device_token : ${device_token}`)
 
   let select_query = "select * from infixel_db.users where login_id = ?"
-  let insert_query = "insert into infixel_db.users (id, created_at, nick_name, login_id, device_token, profile_image) values (?, CURRENT_TIMESTAMP, ?, ?, ?, 'default.png')"
+  let insert_query = "insert into infixel_db.users (id, created_at, login_id, user_name, device_token, profile_image) values (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)"
   let update_query = "update infixel_db.users set device_token = ? where login_id = ?"
 
   pool.getConnection((err, connection) => {
@@ -197,7 +197,7 @@ router.post("/applelogin", (req, res) => {
       
       if (queryErr) {
         connection.release(); // 연결 반환
-        return res.status(500).json({ error: "쿼리 실행 실패" });
+        return res.status(500).json({ error: "select 쿼리 실행 실패" });
       }
   
       if (results.length >= 1) { //가입된 회원이 있을때
