@@ -5,6 +5,7 @@ let router = express.Router();
 require("dotenv").config();
 
 //다른 파일
+const { myPrint } =require("./index")
 const { pool } = require("./database");
 
 router.post("/get", (req, res) => {

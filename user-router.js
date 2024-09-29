@@ -405,12 +405,12 @@ router.post("/profile", (req, res) => {
 router.post("/follow", (req, res) => {
   let userId = req.body.user_id
   let followUser = req.body.follow_user_id
-  
-  let insertQuery = `
-    insert into infixel_db.follows value ('${userId}', '${followUser}');
-  `
+  console.log("follow ", userId, followUser)
 
-  let getUserQuery = `select user_name, device_token from infixel_db.users where id = '${followUser}'`
+  let insertQuery = "insert into infixel_db.follows value (?, ?);"
+
+  let getFollowUserQuery = `select device_token from infixel_db.users where id = '${followUser}'`
+  let getUserQuery = "select user_name from infixel_db.users where id = ?" //userId
 
   pool.getConnection((err, connection) => {
     if (err) {
@@ -423,28 +423,52 @@ router.post("/follow", (req, res) => {
         return res.status(500).json({ error : "트랜직션 시작 실패."})
       }
 
-      connection.query(getUserQuery, (queryErr, results) => {
-        if (queryErr) {
+
+      connection.query(getUserQuery, [userId], (querryErr, results) => {
+        if (querryErr) {
           return connection.rollback(() => {
             connection.release();
-            return res.status(500).json({ result : false})
+            return res.status(500).json({ result : false })
           })
         }
-
-        let device_token = results[0].device_token;
         let user_name = results[0].user_name;
-        sendNotification(device_token, `'${user_name}'님이 회원님을 팔로우 했습니다.`);
 
-        connection.query(insertQuery, (queryErr) => {
+        connection.query(getFollowUserQuery, (queryErr, results) => {
           if (queryErr) {
             return connection.rollback(() => {
               connection.release();
-              return res.status(500).json({ result : false})
+              return res.status(500).json({ result : false })
             })
           }
-          connection.release();
-          return res.json({ result: true})
+  
+          let device_token = results[0].device_token;
+          sendNotification(device_token, `'${user_name}'님이 회원님을 팔로우 했습니다.`);
+  
+          connection.query(insertQuery, [userId, followUser], (queryErr) => {
+            if (queryErr) {
+              return connection.rollback(() => {
+                connection.release();
+                return res.status(500).json({ result : false})
+              })
+            }
+
+            connection.commit((commitErr) => {
+              if (commitErr) {
+                return connection.rollback(() => {
+                  connection.release();
+                  return res.status(500).json({ error: "트랜잭션 커밋 실패." });
+                });
+              }
+              connection.release();
+              return res.json({ result: true }); // 응답을 한 번만 전송
+            });
+
+
+
+
+          })
         })
+        
       })
     })
   })
@@ -483,7 +507,7 @@ router.post("/followornot", (req, res) => {
 
   pool.getConnection((err, connection) => {
     if (err) {
-      return res.status(500).json({ error : "MySql 연결 시류ㅐ"});
+      return res.status(500).json({ error : "MySql 연결 실패"});
     }
     connection.query(query, (queryErr, results) => {
       connection.release();
@@ -552,16 +576,39 @@ const upload = multer({ storage: storage });
 
 router.post("/update", upload.single('file'), async (req, res) => {
   const file = req.file;
-  const { nick_name, user_id, description } = req.body;
+  const { id, nick_name, user_id, description } = req.body;
   const filePath = file.filename;
+
+  let update_query = "update infixel_db.users set user_name = ?, user_id = ?, description = ? where id = ?;"
 
   if (!file) {
     return res.status(400).send('No file uploaded');
+  } else {
+    myPrint("프로필 업데이트 테스트", `id : ${id} \nnick_name : ${nick_name} \nuser_id : ${user_id} \ndescription : ${description}`)
+
+
+    
+
+    
+    pool.getConnection((err, connection) => {
+      if (err) {
+        return res.status(500).json({ error : "MySql 연결 실패"});
+      }
+
+      connection.query(update_query, [nick_name, user_id, description, id],(queryErr, results) => {
+        connection.release();
+        if (queryErr) {
+          return res.status(500).json({ error: queryErr });
+        }
+        
+        
+        res.send({ message: '프로필 수정 완료', filePath: filePath });
+      });
+
+
+    });
+
   }
-
-
-  res.send({ message: '프로필 수정 완료', filePath: filePath });
-
 })
 
 

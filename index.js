@@ -35,6 +35,10 @@ const apnProvider = new apn.Provider({
 
 // 특정 디바이스 토큰으로 알림 보내기
 function sendNotification(deviceToken, alertText) {
+
+  myPrint("send notification", alertText)
+
+  
   let notification = new apn.Notification();
 
   notification.topic = "com.sangjin.Infixel"; // 앱의 번들 식별자
@@ -109,6 +113,7 @@ setupWebSocket(server);
 server.listen(3000, () => {
   console.log("서버가 3000번 포트에서 실행 중입니다.");
 });
+
 
 
 

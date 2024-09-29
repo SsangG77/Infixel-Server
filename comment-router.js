@@ -19,18 +19,17 @@ router.post("/set", (req, res) => {
   let image_id = req.body.image_id; //작성되는 이미지 아이디
 
 
-  let insertQuery = `insert into infixel_db.comments values ('${id}','${content}', '${user_id}', '${image_id}', '${created_at}');`;
+  let insertQuery = `insert into infixel_db.comments values (?,?,?,?,?);`;
   let getUserQuery = `
-    select c.contents, u.id, u.device_token 
-      from 
-    infixel_db.comments as c 
-      join 
-    infixel_db.images as i 
-      on c.image_id = i.id
-      join
-    infixel_db.users as u
-      on u.id = i.user_id 
-      where i.id = '${image_id}'
+    select device_token
+from
+infixel_db.users as users
+join
+infixel_db.images as images
+on images.user_id = users.id
+where images.id = ?
+;
+
       ;
     `
   
@@ -45,7 +44,7 @@ router.post("/set", (req, res) => {
         return res.status(500).json({ error : "트랜잭션 시작 실패."})
       }
 
-      connection.query(getUserQuery, (queryErr, results) => {
+      connection.query(getUserQuery,[image_id], (queryErr, results) => {
         if (queryErr) {
           return connection.rollback(() => {
             connection.release();
@@ -56,7 +55,7 @@ router.post("/set", (req, res) => {
         let device_token = results[0].device_token;
         sendNotification(device_token, `회원님의 사진에 '${content}'댓글이 작성되었습니다.`)
 
-        connection.query(insertQuery, (queryErr) => {
+        connection.query(insertQuery, [id,content, user_id, image_id, created_at], (queryErr) => {
           if (queryErr) {
             return connection.rollback(() => {
               connection.release();

@@ -391,69 +391,154 @@ router.post("/myimage", (req, res)=> {
 
 //=============================================================================
 
+
 router.post("/delete", (req, res) => {
   let image_id = req.body.image_id;
 
-  // 데이터베이스에서 image_name을 조회하는 쿼리
-  let query = `SELECT image_name FROM infixel_db.images WHERE id = ?`;
-
   pool.getConnection((err, connection) => {
     if (err) {
+      console.log("MySQL 연결 실패:", err);
       return res.status(500).json({ error: "MySQL 연결 실패" });
     }
 
-    connection.query(query, [image_id], (queryErr, results) => {
-      if (queryErr) {
+    // 트랜잭션 시작
+    connection.beginTransaction((transactionErr) => {
+      if (transactionErr) {
+        console.log("트랜잭션 시작 실패:", transactionErr);
         connection.release();
-        return res.status(500).json({ error: "쿼리 실행 실패" });
+        return res.status(500).json({ error: "트랜잭션 시작 실패" });
       }
 
-      if (results.length === 0) {
-        connection.release();
-        return res.status(404).json({ error: "이미지를 찾을 수 없습니다." });
-      }
+      // 1. images 테이블에서 image_name을 조회 (이동할 파일명을 얻기 위함)
+      let selectImageQuery = `SELECT image_name FROM infixel_db.images WHERE id = ?`;
 
-      let imageName = results[0].image_name;
-
-      // 원본 이미지 파일 경로 (이미지 저장 폴더)
-      let originalPath = path.join(__dirname, "images", imageName);
-
-      // 삭제된 이미지 파일을 이동시킬 경로 (delete 폴더)
-      let deletePath = path.join(__dirname, "delete", imageName);
-
-      // 파일을 삭제 폴더로 이동시키는 함수
-      fs.rename(originalPath, deletePath, (err) => {
-        if (err) {
-          connection.release();
-          return res.status(500).json({ error: "파일 이동 실패" });
+      connection.query(selectImageQuery, [image_id], (queryErr, results) => {
+        if (queryErr) {
+          console.log("이미지 조회 실패:", queryErr);
+          connection.rollback(() => {
+            connection.release();
+          });
+          return res.status(500).json({ error: "이미지 조회 실패" });
         }
 
-        // 1. album_images 테이블에서 image_id에 해당하는 레코드 삭제
-        let deleteAlbumImagesQuery = `DELETE FROM infixel_db.album_images WHERE image_id = ?`;
+        if (results.length === 0) {
+          console.log("이미지를 찾을 수 없습니다.");
+          connection.release();
+          return res.status(404).json({ error: "이미지를 찾을 수 없습니다." });
+        }
 
-        connection.query(deleteAlbumImagesQuery, [image_id], (albumImagesErr) => {
-          if (albumImagesErr) {
-            connection.release();
-            return res.status(500).json({ error: "album_images 삭제 실패" });
+        let imageName = results[0].image_name;
+
+        // 원본 이미지 파일 경로 (이미지 저장 폴더)
+        let originalPath = path.join(__dirname, "images", imageName);
+
+        // 삭제된 이미지 파일을 이동시킬 경로 (delete 폴더)
+        let deletePath = path.join(__dirname, "delete", imageName);
+
+        // 파일을 삭제 폴더로 이동시키는 함수
+        fs.rename(originalPath, deletePath, (fsErr) => {
+          if (fsErr) {
+            console.log("파일 이동 실패:", fsErr);
+            connection.rollback(() => {
+              connection.release();
+            });
+            return res.status(500).json({ error: "파일 이동 실패" });
           }
 
-          // 2. images 테이블에서 이미지 삭제
-          let deleteQuery = `DELETE FROM infixel_db.images WHERE id = ?`;
+          console.log("파일 이동 성공");
 
-          connection.query(deleteQuery, [image_id], (deleteErr, deleteResults) => {
-            connection.release();
-            if (deleteErr) {
-              return res.status(500).json({ error: "이미지 삭제 실패" });
+          let deleteTagsQuery = "DELETE FROM infixel_db.tags where image_id = ?";
+
+          connection.query(deleteTagsQuery, [image_id], (tagErr) => {
+            if (tagErr) {
+              console.log("Tags 테이블 레코드 삭제 실패 :", tagErr)
+              connection.rollback(() => {
+                connection.release();
+              })
+              return res.status(500).json({error: "Tags 테이블 레코드 삭제 실패"})
+            }
+          })
+
+          // 2. pics 테이블에서 image_id 관련된 레코드 삭제
+          let deletePicsQuery = `DELETE FROM infixel_db.pics WHERE image_id = ?`;
+
+          connection.query(deletePicsQuery, [image_id], (picsErr) => {
+            if (picsErr) {
+              console.log("pics 테이블 레코드 삭제 실패:", picsErr);
+              connection.rollback(() => {
+                connection.release();
+              });
+              return res.status(500).json({ error: "pics 테이블 레코드 삭제 실패" });
             }
 
-            return res.json({ message: "이미지가 delete 폴더로 이동되고, 데이터베이스에서 삭제되었습니다." });
+            console.log("pics 테이블 레코드 삭제 성공");
+
+            // 3. comments 테이블에서 image_id 관련된 레코드 삭제
+            let deleteCommentsQuery = `DELETE FROM infixel_db.comments WHERE image_id = ?`;
+
+            connection.query(deleteCommentsQuery, [image_id], (commentsErr) => {
+              if (commentsErr) {
+                console.log("comments 삭제 실패:", commentsErr);
+                connection.rollback(() => {
+                  connection.release();
+                });
+                return res.status(500).json({ error: "comments 삭제 실패" });
+              }
+
+              console.log("comments 삭제 성공");
+
+              // 4. album_images 테이블에서 image_id에 해당하는 레코드 삭제
+              let deleteAlbumImagesQuery = `DELETE FROM infixel_db.album_images WHERE image_id = ?`;
+
+              connection.query(deleteAlbumImagesQuery, [image_id], (albumImagesErr) => {
+                if (albumImagesErr) {
+                  console.log("album_images 삭제 실패:", albumImagesErr);
+                  connection.rollback(() => {
+                    connection.release();
+                  });
+                  return res.status(500).json({ error: "album_images 삭제 실패" });
+                }
+
+                console.log("album_images 삭제 성공");
+
+                // 5. images 테이블에서 이미지 삭제
+                let deleteImagesQuery = `DELETE FROM infixel_db.images WHERE id = ?`;
+
+                connection.query(deleteImagesQuery, [image_id], (deleteErr, deleteResults) => {
+                  if (deleteErr) {
+                    console.log("images 삭제 실패:", deleteErr);
+                    connection.rollback(() => {
+                      connection.release();
+                    });
+                    return res.status(500).json({ error: "images 삭제 실패" });
+                  }
+
+                  console.log("images 삭제 성공");
+
+                  // 트랜잭션 커밋
+                  connection.commit((commitErr) => {
+                    connection.release();
+
+                    if (commitErr) {
+                      console.log("커밋 실패:", commitErr);
+                      return res.status(500).json({ error: "커밋 실패" });
+                    }
+
+                    console.log("커밋 성공, 이미지 삭제 완료");
+
+                    return res.json({
+                      message: "이미지가 delete 폴더로 이동되고, 데이터베이스에서 삭제되었습니다.",
+                    });
+                  });
+                });
+              });
+            });
           });
         });
       });
     });
   });
 });
-
 
 
 

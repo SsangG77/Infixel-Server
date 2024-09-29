@@ -1,10 +1,13 @@
 const sharp = require('sharp');
 const WebSocket = require('ws');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 require("dotenv").config();
 
 
 const { pool } = require("./database");
+// const { myPrint } = require('./index');
 
 
 
@@ -124,76 +127,93 @@ function setupWebSocket(server) {
         results.forEach((result, i) => {
             let json = {
                 rank: i + 1,
-                id: result.id,
-                link: process.env.URL + "/image/resjpg?filename=" + result.image_name,
-                user_nick: result.user_at,
+                id: result.id == null ? "" : result.id,
+                link:  process.env.URL + "/image/resjpg?filename=" + result.image_name == null ? "" : process.env.URL + "/image/resjpg?filename=" + result.image_name,
+                user_nick:  result.user_at == null ? "" : result.user_at,
                 profile_image: process.env.URL + "/image/resjpg?filename=" + result.profile_image + "&profileimage=true",
                 pic: result.pic,
-                description: result.description
+                description: result.description == null ? "" : result.description
             }
+            
             image_ranking.push(json)
         })
+
 
         broadcastRankings(wss, image_ranking, "/imagerank");
     })
     
   }, 5000);
 
-  setInterval(() => {
+   
+
+
+setInterval(() => {
     getUserRanking(async (err, results) => {
         if (err) {
-            console.error("에러 : ", err)
-            return
+            console.error("에러 : ", err);
+            return;
         }
-        let user_ranking = []
 
+        let user_ranking = [];
 
-        for(const [i, result] of results.entries()) {
+        for (const [i, result] of results.entries()) {
             try {
-                const resizedImageBuffer = await getResizedImage(
-                    path.join(__dirname, 'images', result.profile_image),
-                    100,
-                    100
-                );
-                const base64Image = resizedImageBuffer.toString('base64');
-                const imageUrl = `data:image/jpeg;base64,${base64Image}`;
+                const imagePath = path.join(__dirname, 'images', result.profile_image);
+
+                // 파일 존재 여부 확인
+                const fileExists = await new Promise((resolve) => {
+                    fs.access(imagePath, fs.constants.F_OK, (err) => {
+                        resolve(!err); // 파일이 있으면 true, 없으면 false
+                    });
+                });
+
+                let imageUrl = "";
+
+                if (fileExists) {
+                    // 파일이 존재할 경우 이미지 처리
+                    const resizedImageBuffer = await getResizedImage(imagePath, 100, 100);
+                    const base64Image = resizedImageBuffer.toString('base64');
+                    imageUrl = `data:image/jpeg;base64,${base64Image}`;
+                } else {
+                    console.warn(`이미지 파일이 존재하지 않음: ${imagePath}`);
+                    // 기본 이미지 또는 빈 문자열을 사용
+                    imageUrl = "";  // 또는 기본 이미지 경로를 사용할 수 있습니다.
+                }
 
                 let json = {
                     rank: i + 1,
-                    id: result.id,
-                    user_id: result.user_id,
-                    profile_image: imageUrl,
+                    id: result.id == null ? "" : result.id,
+                    user_id: result.user_id == null ? "" : result.user_id,
+                    profile_image: imageUrl == null ? "" : imageUrl,
                     follower_count: result.follower_count.toString(),
                     pic_count: result.total_likes.toString()
                 };
+
                 user_ranking.push(json);
 
-
-
-            } catch(error) {
-                console.error('이미지 처리 에러:',error)
+            } catch (error) {
+                console.error('이미지 처리 에러:', error);
             }
         }
 
-        broadcastRankings(wss, user_ranking, "/userrank")
+        broadcastRankings(wss, user_ranking, "/userrank");
+    });
+}, 5000);
 
-
-    })
-  }, 5000)
 
   // 이미지 파일의 경로를 처리하고 리사이즈된 이미지를 반환하는 함수
-async function getResizedImage(imagePath, width, height) {
-    try {
-        const outputBuffer = await sharp(imagePath)
-            .resize(width, height)
-            .jpeg({ quality: 80 }) // JPEG 형식으로 압축, 품질 80%
-            .toBuffer();
-        return outputBuffer;
-    } catch (error) {
-        console.error('이미지 처리 에러:', error);
-        throw error;
+    async function getResizedImage(imagePath, width, height) {
+        try {
+            const outputBuffer = await sharp(imagePath)
+                .resize(width, height)
+                .jpeg({ quality: 80 }) // JPEG 형식으로 압축, 품질 80%
+                .toBuffer();
+            return outputBuffer;
+        } catch (error) {
+            console.error('이미지 처리 에러:', error);
+            throw error;
+        }
     }
-}
 
 
 
@@ -214,18 +234,8 @@ async function getResizedImage(imagePath, width, height) {
 
   // WebSocket 연결 처리
   wss.on('connection', (ws) => { //새로운 클라이언트와 connection 이벤트가 발생했을때 동작한다.
-    // console.log('Client connected');
+    
 
-    // const sendRankings = () => { 
-    //   ws.send(JSON.stringify(ranking_images)); //데이터를 json문자열로 변환하여 클라이언트에게 전송한다.
-    // };
-
-    // const interval = setInterval(sendRankings, 1000);
-
-    ws.on('close', () => {
-      //clearInterval(interval);
-    //   console.log('Client disconnected');
-    });
   });
 
   return wss;
