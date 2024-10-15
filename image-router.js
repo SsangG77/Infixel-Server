@@ -226,35 +226,40 @@ router.post("/upload", upload.single('file'), async (req, res) => {
   } else {
     console.log("image-router /upload : ", tagsArray)
 
+  }
 
-    //====
 
-    pool.getConnection((err, connection) => {
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.error("Connection 에러 :", err)
+      res.status(500).json({ error: "Mysql 에러"})
+      return;
+    }
+
+    connection.beginTransaction(async (err) => {
       if (err) {
-        console.error("Connection 에러 :", err)
-        res.status(500).json({ error: "Mysql 에러"})
+        connection.release();
+        console.error("Error starting transaction : ", err)
+        res.status(500).json({ error : "Mysql 트렌직션 에러"})
         return;
       }
 
-      connection.beginTransaction(async (err) => {
-        if (err) {
-          connection.release();
-          console.error("Error starting transaction : ", err)
-          res.status(500).json({ error : "Mysql 트렌직션 에러"})
-          return;
-        }
+      try {
+        let query = `insert into infixel_db.images (id, image_name, user_id, description) values (?, ?, ?, ?);`
+        connection.query(query, [imageId, filePath, user_id, description], (err, result) => {
+          if (err) {
+            connection.rollback(() => {
+              connection.release();
+              console.error("이미지 업로드 에러", err);
+              res.status(500).json({ error: "데이터베이스 insert error"})
+            })
+            return;
+          }
 
-        try {
-          let query = `insert into infixel_db.images (id, image_name, user_id, description) values (?, ?, ?, ?);`
-          connection.query(query, [imageId, filePath, user_id, description], (err, result) => {
-            if (err) {
-              connection.rollback(() => {
-                connection.release();
-                console.error("이미지 업로드 에러", err);
-                res.status(500).json({ error: "데이터베이스 insert error"})
-              })
-              return;
-            }
+          if (tags == undefined) {
+            connection.release();
+                res.send({ message: '업로드 완료', filePath: filePath });
+          } else {
             const tagQuery = 'insert into infixel_db.tags (id, tag, image_id) values (?, ?, ?);'
             const tagPromises = tagsArray.map((tag) => {
               return new Promise((resolve, reject) => {
@@ -267,7 +272,7 @@ router.post("/upload", upload.single('file'), async (req, res) => {
                 });
               });
             });
-
+  
             Promise.all(tagPromises)
             .then(() => {
               connection.commit((err) => {
@@ -279,10 +284,10 @@ router.post("/upload", upload.single('file'), async (req, res) => {
                   })
                   return
                 }
-
+  
                 connection.release();
                 res.send({ message: '업로드 완료', filePath: filePath });
-
+  
               })
             })
             .catch((err) => {
@@ -292,22 +297,26 @@ router.post("/upload", upload.single('file'), async (req, res) => {
                 res.status(500).json({ error: '데이터베이스 입력 에러'})
               })
             })
-
-          })
-
-        } catch {
-          connection.rollback(() => {
-            connection.release();
-            console.error(error);
-            res.status(500).json({ error: '데이터베이스 에러'})
-          })
-        }
-
-
-      })
-
+          }
+        })
+      } catch {
+        connection.rollback(() => {
+          connection.release();
+          console.error(error);
+          res.status(500).json({ error: '데이터베이스 에러'})
+        })
+      }
     })
-  }
+  })
+
+
+
+
+
+
+
+
+
 })
 
 

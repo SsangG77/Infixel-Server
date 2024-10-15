@@ -175,7 +175,7 @@ setInterval(() => {
                     const base64Image = resizedImageBuffer.toString('base64');
                     imageUrl = `data:image/jpeg;base64,${base64Image}`;
                 } else {
-                    console.warn(`이미지 파일이 존재하지 않음: ${imagePath}`);
+                    // console.warn(`이미지 파일이 존재하지 않음: ${imagePath}`);
                     // 기본 이미지 또는 빈 문자열을 사용
                     imageUrl = "";  // 또는 기본 이미지 경로를 사용할 수 있습니다.
                 }

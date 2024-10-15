@@ -612,8 +612,97 @@ router.post("/update", upload.single('file'), async (req, res) => {
 })
 
 
+//=============================================================================
 
 
+router.post("/disable", (req, res) => {
+  let user_id = req.body.user_id;
+  console.log("User ID:", user_id);
+
+  let userImageQuery = "SELECT id FROM infixel_db.images WHERE user_id = ?";
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      console.log("MySQL 연결 실패:", err);
+      return res.status(500).json({ error: "MySQL 연결 실패" });
+    }
+
+    // 사용자의 모든 이미지 ID를 가져오는 쿼리
+    connection.query(userImageQuery, [user_id], async (queryErr, results) => {
+      if (queryErr) {
+        connection.release();
+        console.log("쿼리 오류:", queryErr);
+        return res.status(500).json({ result: false });
+      }
+
+      // 가져온 이미지 ID 배열 확인
+      if (results.length === 0) {
+        connection.release();
+        return res.status(404).json({ message: "이미지가 없습니다." });
+      }
+
+      let imageIds = results.map(row => row.id);
+
+      // 각 이미지 ID마다 실행할 쿼리들
+      let deleteCommentsQuery      = "DELETE FROM infixel_db.comments WHERE image_id = ?";
+      let deleteAlbumImagesQuery   = "DELETE FROM infiexl_db.album_images WHERE image_id = ?";
+      let deletePicsQuery          = "DELETE FROM infixel_db.pics WHERE image_id = ?";
+      let deleteReportImageQuery   = "DELETE FROM infixel_db.report_image WHERE image_id = ?";
+      let deleteTagsQuery          = "DELETE FROM infixel_db.tags WHERE image_id = ?";
+
+      try {
+        // 각 이미지에 대해 쿼리를 병렬로 실행
+        await Promise.all(imageIds.map(async (image_id) => {
+          // Promise.all로 각 쿼리를 비동기적으로 실행
+          await Promise.all([
+            executeQuery(connection, deleteCommentsQuery, [image_id]),
+            executeQuery(connection, deleteAlbumImagesQuery, [image_id]),
+            executeQuery(connection, deletePicsQuery, [image_id]),
+            executeQuery(connection, deleteReportImageQuery, [image_id]),
+            executeQuery(connection, deleteTagsQuery, [image_id])
+          ]);
+          console.log(`이미지 ${image_id}에 대한 모든 관련 정보 삭제 완료`);
+        }));
+
+        //이 이후로 유저가 생성한 앨범, 신고한 기록, pic한 기록, 입력한 댓글들 삭제
+
+        
+
+
+
+
+
+
+
+
+
+
+
+        // 모든 쿼리가 완료되면 응답 전송
+        connection.release();
+        console.log("모든 이미지 관련 정보가 삭제되었습니다.");
+        return res.json({ result: true });
+
+      } catch (error) {
+        connection.release();
+        console.log("삭제 중 오류 발생:", error);
+        return res.status(500).json({ result: false, error: "삭제 중 오류 발생" });
+      }
+    });
+  });
+});
+
+// 쿼리 실행을 위한 함수
+function executeQuery(connection, query, params) {
+  return new Promise((resolve, reject) => {
+    connection.query(query, params, (err, result) => {
+      if (err) {
+        return reject(err);  // 쿼리 실패 시 reject 호출
+      }
+      resolve(result);  // 쿼리 성공 시 resolve 호출
+    });
+  });
+}
 
 
 
