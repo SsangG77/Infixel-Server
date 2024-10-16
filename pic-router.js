@@ -11,6 +11,13 @@ router.post("/up", (req, res) => {
   let image_id = req.body.image_id;
   let user_id = req.body.user_id;
 
+  /**
+   * 오류 해결 방법
+   * user_id와 image_id로 가져온 유저의 아이디가 일치하지 않을때만 실행
+   */
+
+  let getImageUploaderId = "select user_id from infixel_db.images where id = ?" // <- image_id
+
   let getUserQuery = `
     SELECT 
       infixel_db.images.user_id,
@@ -42,7 +49,7 @@ router.post("/up", (req, res) => {
         return res.status(500).json({ error: "트랜잭션 시작 실패." });
       }
 
-      connection.query(getUserQuery, [image_id, user_id], (queryErr, results) => {
+      connection.query(getImageUploaderId, [image_id], (queryErr, results) => {
         if (queryErr) {
           return connection.rollback(() => {
             connection.release();
@@ -50,30 +57,47 @@ router.post("/up", (req, res) => {
           });
         }
 
-        let device_token = results[0].device_token;
-        sendNotification(device_token, "회원님의 사진을 Pic!했습니다.");
+        let uploader_id = results[0].user_id;
 
-        connection.query(insertPicQuery, [user_id, image_id], (queryErr, results) => {
-          if (queryErr) {
-            return connection.rollback(() => {
-              connection.release();
-              return res.status(500).json({ result: false });
-            });
-          }
-
-          connection.commit((err) => {
-            if (err) {
+        if (uploader_id != user_id) {
+          connection.query(getUserQuery, [image_id, user_id], (queryErr, results) => {
+            if (queryErr) {
               return connection.rollback(() => {
                 connection.release();
-                return res.status(500).json({ error: "트랜잭션 커밋 실패." });
+                return res.status(500).json({ result: false });
               });
             }
-
-            connection.release();
-            return res.json({ result: true });
+    
+            let device_token = results[0].device_token;
+            sendNotification(device_token, "회원님의 사진을 Pic!했습니다.");
+    
+            connection.query(insertPicQuery, [user_id, image_id], (queryErr, results) => {
+              if (queryErr) {
+                return connection.rollback(() => {
+                  connection.release();
+                  return res.status(500).json({ result: false });
+                });
+              }
+    
+              connection.commit((err) => {
+                if (err) {
+                  return connection.rollback(() => {
+                    connection.release();
+                    return res.status(500).json({ error: "트랜잭션 커밋 실패." });
+                  });
+                }
+    
+                connection.release();
+                return res.json({ result: true });
+              });
+            });
           });
-        });
-      });
+        } else {
+          connection.release();
+          return res.json({ result: false });
+        }
+
+      })
     });
   });
 });

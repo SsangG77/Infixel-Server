@@ -4,6 +4,7 @@ const path = require("path");
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const multer = require('multer');
+const util = require('util');
 
 let router = express.Router();
 
@@ -614,95 +615,113 @@ router.post("/update", upload.single('file'), async (req, res) => {
 
 //=============================================================================
 
+const unlink = util.promisify(fs.unlink);
 
 router.post("/disable", (req, res) => {
   let user_id = req.body.user_id;
   console.log("User ID:", user_id);
 
-  let userImageQuery = "SELECT id FROM infixel_db.images WHERE user_id = ?";
+  let userImageQuery = "SELECT id, image_name FROM infixel_db.images WHERE user_id = ?";
 
-  pool.getConnection((err, connection) => {
+  pool.getConnection(async (err, connection) => {
     if (err) {
       console.log("MySQL 연결 실패:", err);
       return res.status(500).json({ error: "MySQL 연결 실패" });
     }
 
-    // 사용자의 모든 이미지 ID를 가져오는 쿼리
-    connection.query(userImageQuery, [user_id], async (queryErr, results) => {
-      if (queryErr) {
-        connection.release();
-        console.log("쿼리 오류:", queryErr);
-        return res.status(500).json({ result: false });
-      }
+    try {
+      // 트랜잭션 시작
+      await executeQuery(connection, "START TRANSACTION");
 
-      // 가져온 이미지 ID 배열 확인
+      // 사용자의 모든 이미지 ID와 이름을 가져오는 쿼리
+      let results = await executeQuery(connection, userImageQuery, [user_id]);
+
       if (results.length === 0) {
         connection.release();
         return res.status(404).json({ message: "이미지가 없습니다." });
       }
 
       let imageIds = results.map(row => row.id);
+      let imageFileNames = results.map(row => row.image_name);
 
       // 각 이미지 ID마다 실행할 쿼리들
       let deleteCommentsQuery      = "DELETE FROM infixel_db.comments WHERE image_id = ?";
-      let deleteAlbumImagesQuery   = "DELETE FROM infiexl_db.album_images WHERE image_id = ?";
+      let deleteAlbumImagesQuery   = "DELETE FROM infixel_db.album_images WHERE image_id = ?";
       let deletePicsQuery          = "DELETE FROM infixel_db.pics WHERE image_id = ?";
       let deleteReportImageQuery   = "DELETE FROM infixel_db.report_image WHERE image_id = ?";
       let deleteTagsQuery          = "DELETE FROM infixel_db.tags WHERE image_id = ?";
+      let deleteImageQuery         = "DELETE FROM infixel_db.images WHERE id = ?";
 
+      // 각 이미지에 대해 쿼리를 병렬로 실행
+      await Promise.all(imageIds.map(async (image_id) => {
+        await Promise.all([
+          executeQuery(connection, deleteCommentsQuery, [image_id]),
+          executeQuery(connection, deleteAlbumImagesQuery, [image_id]),
+          executeQuery(connection, deletePicsQuery, [image_id]),
+          executeQuery(connection, deleteReportImageQuery, [image_id]),
+          executeQuery(connection, deleteTagsQuery, [image_id]),
+          executeQuery(connection, deleteImageQuery, [image_id])
+        ]);
+        console.log(`이미지 ${image_id}에 대한 모든 관련 정보 삭제 완료`);
+      }));
+
+      // 유저와 연결된 모든 데이터 삭제
+      let deleteCommentsUserQuery = "DELETE FROM infixel_db.comments WHERE user_id = ?";
+      let deletePicsUserQuery = "DELETE FROM infixel_db.pics WHERE user_id = ?";
+      let deleteReportUserQuery = "DELETE FROM infixel_db.report_image WHERE user_id = ?";
+      let deleteFollowQuery = "DELETE FROM infixel_db.follows WHERE user_id = ? OR follow_user_id = ?";
+      let deleteAlbumsQuery = "DELETE FROM infixel_db.albums WHERE user_id = ?";
+      let deleteUserQuery = "DELETE FROM infixel_db.users where id = ?";
+
+      await Promise.all([
+        executeQuery(connection, deleteCommentsUserQuery, [user_id]),
+        executeQuery(connection, deletePicsUserQuery, [user_id]),
+        executeQuery(connection, deleteReportUserQuery, [user_id]),
+        executeQuery(connection, deleteFollowQuery, [user_id, user_id]),
+        executeQuery(connection, deleteAlbumsQuery, [user_id]),
+        executeQuery(connection, deleteUserQuery, [user_id])
+      ]);
+
+      // 트랜잭션 커밋 (모든 작업 성공)
+      await executeQuery(connection, "COMMIT", []);
+
+      // 커넥션 해제
+      connection.release();
+
+      // 트랜잭션이 성공적으로 완료된 후, 이미지 파일 삭제 진행
       try {
-        // 각 이미지에 대해 쿼리를 병렬로 실행
-        await Promise.all(imageIds.map(async (image_id) => {
-          // Promise.all로 각 쿼리를 비동기적으로 실행
-          await Promise.all([
-            executeQuery(connection, deleteCommentsQuery, [image_id]),
-            executeQuery(connection, deleteAlbumImagesQuery, [image_id]),
-            executeQuery(connection, deletePicsQuery, [image_id]),
-            executeQuery(connection, deleteReportImageQuery, [image_id]),
-            executeQuery(connection, deleteTagsQuery, [image_id])
-          ]);
-          console.log(`이미지 ${image_id}에 대한 모든 관련 정보 삭제 완료`);
-        }));
+        for (const imageFileName of imageFileNames) {
+          const filePath = path.join(__dirname, 'images', imageFileName);  // ./images 폴더 경로 설정
+          
+          // 파일이 존재하는지 확인 후 삭제
+          try {
+            await unlink(filePath);
+            console.log(`${filePath} 파일이 삭제되었습니다.`);
+          } catch (error) {
+            if (error.code === 'ENOENT') {
+              console.log(`${filePath} 파일을 찾을 수 없습니다.`);  // 파일이 없을 경우
+            } else {
+              throw error;  // 다른 오류 발생 시
+            }
+          }
+        }
 
-        //이 이후로 유저가 생성한 앨범, 신고한 기록, pic한 기록, 입력한 댓글들 삭제
+        return res.json({ result: true, message: "모든 데이터와 이미지 파일이 성공적으로 삭제되었습니다." });
 
-        
-
-
-
-
-
-
-
-
-
-
-
-        // 모든 쿼리가 완료되면 응답 전송
-        connection.release();
-        console.log("모든 이미지 관련 정보가 삭제되었습니다.");
-        return res.json({ result: true });
-
-      } catch (error) {
-        connection.release();
-        console.log("삭제 중 오류 발생:", error);
-        return res.status(500).json({ result: false, error: "삭제 중 오류 발생" });
+      } catch (fileError) {
+        console.log("파일 삭제 중 오류 발생:", fileError);
+        return res.status(500).json({ result: false, error: "데이터는 삭제되었으나 파일 삭제 중 오류가 발생했습니다." });
       }
-    });
+
+    } catch (error) {
+      // 트랜잭션 롤백 (오류 발생 시)
+      await executeQuery(connection, "ROLLBACK", []);
+      connection.release();
+      console.log("삭제 중 오류 발생:", error);
+      return res.status(500).json({ result: false, error: "삭제 중 오류 발생" });
+    }
   });
 });
-
-// 쿼리 실행을 위한 함수
-function executeQuery(connection, query, params) {
-  return new Promise((resolve, reject) => {
-    connection.query(query, params, (err, result) => {
-      if (err) {
-        return reject(err);  // 쿼리 실패 시 reject 호출
-      }
-      resolve(result);  // 쿼리 성공 시 resolve 호출
-    });
-  });
-}
 
 
 
