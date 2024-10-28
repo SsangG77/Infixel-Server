@@ -12,6 +12,7 @@ let router = express.Router();
 //다른 파일
 const { formatDate, sendNotification, myPrint } = require("./index");
 const { pool } = require("./database");
+const { error } = require("console");
 
 //============================================================
 
@@ -351,36 +352,45 @@ ORDER BY
 
 router.post("/profile", (req, res) => {
   let user_id = req.body.user_id;
+let block_user_id = req.body.block_user_id;
 
-  let quary = `
+
+let query = `
   SELECT
-	u.id,
+    u.id,
     u.user_id as user_at,
     u.user_name as user_id,
     u.profile_image,
     u.description,
     COUNT(DISTINCT f2.follow_user_id) AS follow_count,
-    count(distinct f1.user_id) AS follower_count,
-    COUNT(DISTINCT p.image_id) AS pic
+    COUNT(DISTINCT f1.user_id) AS follower_count,
+    COUNT(DISTINCT p.image_id) AS pic,
+    -- 차단 여부 확인 부분 추가
+    CASE WHEN bu.blocked_user_id IS NOT NULL THEN true ELSE false END AS is_blocked
   FROM
       infixel_db.users u
   LEFT JOIN
       infixel_db.follows f1 ON u.id = f1.follow_user_id
-  left Join
-    infixel_db.follows f2 ON u.id = f2.user_id
+  LEFT JOIN
+      infixel_db.follows f2 ON u.id = f2.user_id
   LEFT JOIN
       infixel_db.images i ON u.id = i.user_id
   LEFT JOIN
       infixel_db.pics p ON i.id = p.image_id
-  where u.id = '${user_id}'
-  group BY
-      u.id, u.user_id, u.user_name, u.profile_image;
-    `
+  LEFT JOIN
+      infixel_db.blocked_users bu ON u.id = bu.blocked_user_id AND bu.user_id = '${user_id}'
+  WHERE 
+      u.id = '${block_user_id}'
+  GROUP BY
+      u.id, u.user_id, u.user_name, u.profile_image, u.description, bu.blocked_user_id;
+`;
+
+
   pool.getConnection((err, connection) => {
     if (err) {
       return res.status(500).json({error: "연결 실패"})
     }
-    connection.query(quary, (queryErr, results) => {
+    connection.query(query, (queryErr, results) => {
       connection.release();
       if(queryErr) {
         return res.status(500).json({results: false})
@@ -394,12 +404,15 @@ router.post("/profile", (req, res) => {
         follow: r.follow_count,
         follower: r.follower_count,
         description: r.description == null ? "" : r.description,
-        profile_image: process.env.URL + "/image/resjpg?filename=" + r.profile_image + "&profileimage=true"
+        profile_image: process.env.URL + "/image/resjpg?filename=" + r.profile_image + "&profileimage=true",
+        is_blocked: r.is_blocked
       }
+      myPrint("/profile", `user_id : ${user_id}, block_user_id : ${block_user_id}, is_blocked : ${r.is_blocked}`)
       res.json(user)
     })
   })
 })
+
 //===============================================================================
 
 
@@ -587,10 +600,6 @@ router.post("/update", upload.single('file'), async (req, res) => {
   } else {
     myPrint("프로필 업데이트 테스트", `id : ${id} \nnick_name : ${nick_name} \nuser_id : ${user_id} \ndescription : ${description}`)
 
-
-    
-
-    
     pool.getConnection((err, connection) => {
       if (err) {
         return res.status(500).json({ error : "MySql 연결 실패"});
@@ -722,6 +731,65 @@ router.post("/disable", (req, res) => {
     }
   });
 });
+
+
+
+//=============================================================================
+
+
+router.post("/block", (req, res) => {
+  let user_id = req.body.user_id;
+  let block_user_id = req.body.block_user_id;
+  myPrint("/block test", `user_id : ${user_id}, block_user_id : ${block_user_id}`)
+
+  let query = 'insert into infixel_db.blocked_users (user_id, blocked_user_id) values (?, ?)'
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error : "MySql 연결 실패"});
+    }
+    connection.query(query, [user_id, block_user_id], (queryErr, results) => {
+      connection.release();
+      if (queryErr) {
+        return res.status(500).json({ error: queryErr });
+      }
+      myPrint("/block result", results)
+      res.json(true)
+      
+
+
+
+    });
+  })
+
+})
+
+//=============================================================================
+
+router.post("/unblock", (req, res) => {
+  let user_id = req.body.user_id;
+  let block_user_id = req.body.block_user_id;
+  myPrint("/unblock test", `user_id : ${user_id}, block_user_id : ${block_user_id}`)
+
+  let query = "delete from infixel_db.blocked_users where user_id = ?, blocked_user_id = ?";
+
+  pool.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ error : "연결 실패"})
+    }
+    connection.query(query, [user_id, block_user_id], (queryErr, results) => {
+      connection.release();
+      if(queryErr) {
+        return res.status(500).json({ error : queryErr})
+      }
+      myPrint("/unblock result", results)
+      res.json(true)
+
+    })
+  })
+
+
+})
 
 
 

@@ -23,51 +23,95 @@ router.get("/test", (res) => {
 //===================================================================================================
 
 let randomImgCount = 0;
-router.get("/randomimage", (req, res) => {
-  randomImgCount++;
+rrouter.get("/randomimage", (req, res) => {
+  let user_id = req.query.user_id;
+let reportImageQuery = `
+    SELECT image_id FROM infixel_db.report_image WHERE user_id = ?
+  `;
 
-  let query = `
-  SELECT 
-    infixel_db.images.*, 
-    infixel_db.users.profile_image, 
-    infixel_db.users.user_id AS user_at, 
-    COUNT(infixel_db.pics.image_id) AS pic
-  FROM 
-    infixel_db.images
-  JOIN 
-    infixel_db.users ON infixel_db.images.user_id = infixel_db.users.id
-  LEFT JOIN 
-    infixel_db.pics ON infixel_db.images.id = infixel_db.pics.image_id
-  GROUP BY 
-    infixel_db.images.id
-  ORDER BY RAND()
-  LIMIT 1;
-  `
+let blockedUserQuery = `
+    SELECT blocked_user_id FROM infixel_db.blocked_users WHERE user_id = ?
+  `;
 
-  pool.getConnection((err, connection) => {
-    if (err) {
-      return res.status(500).json({ error: "MySQL 연결 실패" });
+pool.getConnection((err, connection) => {
+  if (err) {
+    return res.status(500).json({ error: "MySQL 연결 실패" });
+  }
+
+  // 1. 신고된 이미지와 차단된 사용자를 동시에 조회
+  connection.query(reportImageQuery, [user_id], (reportErr, reportedImages) => {
+    if (reportErr) {
+      connection.release();
+      return res.status(500).json({ error: "쿼리 실행 실패 (신고된 이미지 조회)" });
     }
 
-    connection.query(query, (queryErr, results) => {
-      connection.release(); // 연결 반환
-      if (queryErr) {
-        return res.status(500).json({ error: "쿼리 실행 실패" });
+    connection.query(blockedUserQuery, [user_id], (blockErr, blockedUsers) => {
+      if (blockErr) {
+        connection.release();
+        return res.status(500).json({ error: "쿼리 실행 실패 (차단된 사용자 조회)" });
       }
 
-      let jsonData = {
-        id: results[0].id,
-        created_at: results[0].created_at == null ? "" : results[0].created_at,
-        user_id: results[0].user_id == null ? "" : results[0].user_id,
-        image_link: process.env.URL + "/image/resjpg?filename=" + results[0].image_name,
-        description: results[0].description == null ? "" : results[0].description,
-        user_at: results[0].user_at,
-        profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
-        pic: results[0].pic,
-      };
-      res.json(jsonData);
+      // 신고된 image_id 리스트 생성
+      let reportedImageIds = reportedImages.map(row => row.image_id);
+      let blockedUserIds = blockedUsers.map(row => row.blocked_user_id);
+
+      // 신고된 이미지 및 차단된 사용자를 제외하는 조건 생성
+      let excludeCondition = '';
+      if (reportedImageIds.length) {
+        excludeCondition += `AND infixel_db.images.id NOT IN ('${reportedImageIds.join("', '")}') `;
+      }
+      if (blockedUserIds.length) {
+        excludeCondition += `AND infixel_db.images.user_id NOT IN ('${blockedUserIds.join("', '")}') `;
+      }
+
+      // 이미지를 조회할 메인 쿼리
+      let query = `
+        SELECT 
+          infixel_db.images.*, 
+          infixel_db.users.profile_image, 
+          infixel_db.users.user_id AS user_at, 
+          COUNT(infixel_db.pics.image_id) AS pic
+        FROM 
+          infixel_db.images
+        JOIN 
+          infixel_db.users ON infixel_db.images.user_id = infixel_db.users.id
+        LEFT JOIN 
+          infixel_db.pics ON infixel_db.images.id = infixel_db.pics.image_id
+        WHERE 1=1 ${excludeCondition}  -- 제외할 이미지 및 차단된 사용자 추가
+        GROUP BY 
+          infixel_db.images.id
+        ORDER BY RAND()
+        LIMIT 1;
+      `;
+
+      // 최종 쿼리 실행
+      connection.query(query, (queryErr, results) => {
+        connection.release(); // 연결 반환
+        if (queryErr) {
+          return res.status(500).json({ error: "쿼리 실행 실패 (이미지 조회)" });
+        }
+
+        if (results.length === 0) {
+          return res.status(404).json({ error: "조건에 맞는 이미지가 없습니다." });
+        }
+
+        // 결과 처리
+        let jsonData = {
+          id: results[0].id,
+          created_at: results[0].created_at == null ? "" : results[0].created_at,
+          user_id: results[0].user_id == null ? "" : results[0].user_id,
+          image_link: process.env.URL + "/image/resjpg?filename=" + results[0].image_name,
+          description: results[0].description == null ? "" : results[0].description,
+          user_at: results[0].user_at,
+          profile_image: process.env.URL + "/image/resjpg?filename=" + results[0].profile_image + "&profileimage=true",
+          pic: results[0].pic,
+        };
+        res.json(jsonData);
+      });
     });
   });
+});
+
 });
 
 //==========================================================================
